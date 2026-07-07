@@ -169,8 +169,8 @@ console.log('some extra code');
 
 ## Terminal Code Block Frames
 
-Shell-language Code Blocks derive the terminal Code Block Frame from the Markdown language. Use a
-shell language such as `bash`, `sh`, `shell`, or `zsh` for command examples:
+Shell-language Code Blocks derive the terminal Code Block Frame from the Markdown language. The
+shell languages are `bash`, `console`, `sh`, `shell`, `shell-session`, `terminal`, and `zsh`:
 
 ````markdown
 ```bash

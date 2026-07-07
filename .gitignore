@@ -18,6 +18,9 @@ temp
 # Playwright MCP runtime data
 .playwright-mcp/
 
+# Sandcastle runtime data
+.sandcastle/
+
 # imported shoelace icons
 sites/app/entrypoint/assets/icons/*
 sites/app-demo/entrypoint/assets/icons/*

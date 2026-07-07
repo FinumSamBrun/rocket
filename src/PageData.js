@@ -26,11 +26,14 @@ export class PageData {
     url,
     { siteHeadMetadata, pageSiteHeadMetadata, defaultSocialPreviewImage, siteOrigin } = {},
   ) {
-    const pageMetadata = typeof metadata === 'string' ? { title: metadata } : metadata;
+    // Copy so layout/page writes (e.g. the title setter) never mutate the
+    // shared Page Registry across renders.
+    const pageMetadata = typeof metadata === 'string' ? { title: metadata } : { ...metadata };
     this.pageRegistry = pageRegistry;
     /** @type {import('@rocket/js/types.js').PageRegistryQuery} */
     this.pages = new PageRegistryQuery(pageRegistry);
-    this.pageTree = treeFromPages(pageRegistry);
+    /** @type {import('@rocket/js/types.js').PageTree | undefined} */
+    this._pageTree = undefined;
     this._clientCode = '';
     this._hydrationScript = '';
     /** @type {boolean} */
@@ -62,6 +65,13 @@ export class PageData {
             siteOrigin,
           })
         : undefined;
+  }
+
+  get pageTree() {
+    if (!this._pageTree) {
+      this._pageTree = treeFromPages(this.pageRegistry);
+    }
+    return this._pageTree;
   }
 
   get title() {

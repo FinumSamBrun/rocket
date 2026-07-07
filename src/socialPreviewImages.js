@@ -57,7 +57,7 @@ export async function generateStaticDefaultSocialPreviewImages({
   siteHeadMetadata,
   siteOrigin,
   cacheDirectory,
-  captureSocialPreviewImage = captureSocialPreviewImageWithBrowser,
+  captureSocialPreviewImage,
 }) {
   /** @type {Map<string, DefaultSocialPreviewImageOutput>} */
   const outputs = new Map();
@@ -71,6 +71,43 @@ export async function generateStaticDefaultSocialPreviewImages({
     );
   }
 
+  // Launching Chromium costs seconds; share one browser across all uncached captures.
+  /** @type {import('puppeteer-core').Browser | undefined} */
+  let sharedBrowser;
+  /** @type {SocialPreviewCapture} */
+  const capture =
+    captureSocialPreviewImage ??
+    (async ({ html }) => {
+      sharedBrowser ??= await puppeteer.launch(await createSocialPreviewBrowserLaunchOptions());
+      return renderSocialPreviewImage(html, sharedBrowser);
+    });
+
+  try {
+    await generateInto({ outputs, pages, siteHeadMetadata, siteOrigin, cacheDirectory, capture });
+  } finally {
+    await sharedBrowser?.close();
+  }
+  return outputs;
+}
+
+/**
+ * @param {{
+ *   outputs: Map<string, DefaultSocialPreviewImageOutput>;
+ *   pages: import('@rocket/js/types.js').PageRegistry;
+ *   siteHeadMetadata: import('@rocket/js/types.js').SiteHeadMetadataConfig;
+ *   siteOrigin: string;
+ *   cacheDirectory?: string;
+ *   capture: SocialPreviewCapture;
+ * }} options
+ */
+async function generateInto({
+  outputs,
+  pages,
+  siteHeadMetadata,
+  siteOrigin,
+  cacheDirectory,
+  capture,
+}) {
   for (const [pagePath, page] of pages) {
     if (!needsDefaultSocialPreviewImage({ pagePath, page, siteHeadMetadata })) {
       continue;
@@ -101,7 +138,7 @@ export async function generateStaticDefaultSocialPreviewImages({
     }
 
     try {
-      const data = await captureSocialPreviewImage({
+      const data = await capture({
         html,
         width: DEFAULT_SOCIAL_PREVIEW_IMAGE_WIDTH,
         height: DEFAULT_SOCIAL_PREVIEW_IMAGE_HEIGHT,
@@ -121,7 +158,6 @@ export async function generateStaticDefaultSocialPreviewImages({
       );
     }
   }
-  return outputs;
 }
 
 /**
@@ -332,34 +368,39 @@ export async function captureSocialPreviewImageWithBrowser({ html }) {
 
 /**
  * @param {string} html
+ * @param {import('puppeteer-core').Browser} [existingBrowser] reused across captures; the caller owns closing it
  * @returns {Promise<Buffer>}
  */
-export async function renderSocialPreviewImage(html) {
-  /** @type {import('puppeteer-core').Browser | undefined} */
-  let browser;
+export async function renderSocialPreviewImage(html, existingBrowser) {
+  const browser =
+    existingBrowser ?? (await puppeteer.launch(await createSocialPreviewBrowserLaunchOptions()));
+  /** @type {import('puppeteer-core').Page | undefined} */
+  let page;
   try {
-    browser = await puppeteer.launch(await createSocialPreviewBrowserLaunchOptions());
-    const page = await browser.newPage();
-    await page.setViewport({
+    const capturePage = await browser.newPage();
+    page = capturePage;
+    await capturePage.setViewport({
       width: DEFAULT_SOCIAL_PREVIEW_IMAGE_WIDTH,
       height: DEFAULT_SOCIAL_PREVIEW_IMAGE_HEIGHT,
       deviceScaleFactor: 1,
     });
 
     await runSocialPreviewCaptureStep('set Social Preview HTML content', () =>
-      page.setContent(html, { waitUntil: 'load' }),
+      capturePage.setContent(html, { waitUntil: 'load' }),
     );
     await runSocialPreviewCaptureStep('wait for Social Preview fonts', () =>
-      page.evaluateHandle('document.fonts.ready'),
+      capturePage.evaluateHandle('document.fonts.ready'),
     );
     const screenshot = await runSocialPreviewCaptureStep('capture Social Preview screenshot', () =>
-      page.screenshot({
+      capturePage.screenshot({
         type: 'png',
       }),
     );
     return Buffer.from(screenshot);
   } finally {
-    if (browser) {
+    if (existingBrowser) {
+      await page?.close();
+    } else {
       await browser.close();
     }
   }
@@ -401,7 +442,21 @@ export async function resolveSocialPreviewBrowserExecutablePath({
     return explicitPath;
   }
   if (platform === 'linux') {
-    return chromiumExecutablePath();
+    // Prefer the bundled serverless Chromium (CI/deploy targets); fall back to
+    // a locally installed browser on regular Linux machines.
+    try {
+      return await chromiumExecutablePath();
+    } catch (error) {
+      const localBrowserPath = findLocalBrowserExecutable({ platform, env, fileExists });
+      if (localBrowserPath) {
+        return localBrowserPath;
+      }
+      throw new Error(
+        `Unable to resolve a browser for Social Preview Capture. ` +
+          `Install Google Chrome or set PUPPETEER_EXECUTABLE_PATH to a Chromium-compatible browser.`,
+        { cause: error },
+      );
+    }
   }
   const localBrowserPath = findLocalBrowserExecutable({ platform, env, fileExists });
   if (localBrowserPath) {
@@ -429,6 +484,17 @@ function findLocalBrowserExecutable({ platform, env, fileExists }) {
       '/Applications/Chromium.app/Contents/MacOS/Chromium',
       '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
       '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+    );
+  }
+  if (platform === 'linux') {
+    paths.push(
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+      '/snap/bin/chromium',
+      '/usr/bin/microsoft-edge',
+      '/usr/bin/brave-browser',
     );
   }
   if (platform === 'win32') {

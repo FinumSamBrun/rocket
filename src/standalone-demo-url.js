@@ -1,4 +1,4 @@
-import { URLPattern } from 'urlpattern-polyfill';
+import { routePattern } from './route-pattern.js';
 
 /** @typedef {import('@rocket/js/types.js').PageRegistry} PageRegistry */
 /** @typedef {import('@rocket/js/types.js').Page} Page */
@@ -124,7 +124,7 @@ export function normalizeDocumentPath(pagePath) {
  * @param {string} routePath
  */
 function matchPagePath(pathname, origin, routePath) {
-  const pattern = new URLPattern({ pathname: routePath });
+  const pattern = routePattern(routePath);
   return pattern.exec(pathname, origin);
 }
 

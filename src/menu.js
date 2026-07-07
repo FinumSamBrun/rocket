@@ -34,13 +34,14 @@ export function treeFromPages(pages) {
       continue;
     }
     const parts = getMenuParts(url, module);
+    if (parts.some(part => part.startsWith(':'))) {
+      // Dynamic paths have no single public URL, so they get no menu entry.
+      continue;
+    }
     let obj = children;
     /** @type {any} */
     let last = {};
     for (const part of parts) {
-      if (part.startsWith(':')) {
-        break;
-      }
       const get = obj.find(leaf => leaf.name === part);
       if (!get) {
         /** @type {import('@rocket/js/types.js').PageTree[]} */
@@ -137,19 +138,25 @@ function sortRecursive(children) {
 }
 
 /**
+ * The itemFn receives the rendered child list (or lit `nothing`) and must place
+ * it inside the returned item so nested lists stay valid HTML.
+ *
  * @param {import("@rocket/js/types.js").PageTree} tree
  * @param {string} listTagName
- * @param {(name: string, url: string, module: import("@rocket/js/types.js").Module, linkText: string) => import("lit").TemplateResult} itemFn
+ * @param {(name: string, url: string, module: import("@rocket/js/types.js").Module, linkText: string, children: import("lit").TemplateResult | typeof nothing) => import("lit").TemplateResult} itemFn
+ * @returns {import("lit").TemplateResult}
  */
 export function treeToHtml(tree, listTagName, itemFn) {
   return html`${unsafeHTML(`<${listTagName}>`)}${join(
-    tree.children.map(page => {
-      let a = itemFn(page.name, page.url, page.module, page.linkText);
-      if (page.children.length) {
-        a = html`${a}${treeToHtml(page, listTagName, itemFn)}`;
-      }
-      return a;
-    }),
+    tree.children.map(page =>
+      itemFn(
+        page.name,
+        page.url,
+        page.module,
+        page.linkText,
+        page.children.length ? treeToHtml(page, listTagName, itemFn) : nothing,
+      ),
+    ),
     nothing,
   )}${unsafeHTML(`</${listTagName}>`)}`;
 }
@@ -158,14 +165,13 @@ export function treeToHtml(tree, listTagName, itemFn) {
  * @param {import('@rocket/js/types.js').PageTree} pageTree
  */
 export function defaultHtmlMenu(pageTree) {
-  return treeToHtml(
-    pageTree,
-    'ul',
-    (_name, url, _module, linkText) =>
-      html`<li>
-        <a href=${url}>${linkText}</a>
-      </li>`,
-  );
+  return treeToHtml(pageTree, 'ul', (_name, url, module, linkText, children) => {
+    const menu = module.config.menu;
+    const noLink = !url || menu === false || (typeof menu === 'object' && menu?.noLink);
+    return html`<li>
+      ${noLink ? html`<span>${linkText}</span>` : html`<a href=${url}>${linkText}</a>`}${children}
+    </li>`;
+  });
 }
 
 /** Runs on: import-hook */

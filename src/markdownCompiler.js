@@ -5,7 +5,7 @@ import rehypeRaw from 'rehype-raw';
 import { unified } from 'unified';
 import { visit } from 'unist-util-visit';
 import { extractMdCode } from './extractCode.js';
-import { mdToJs, mdToJsSingleDemo } from './transform.js';
+import { isDemoCodeNode, mdToJs, mdToJsSingleDemo } from './transform.js';
 import { init, parse as parseExports } from 'es-module-lexer';
 import ts from 'typescript';
 import { parseRequestDemoMetadata } from './requestDemoMetadata.js';
@@ -235,7 +235,7 @@ function extractDemoNames() {
   /** @type {import('unist-util-visit').Visitor} */
   const visitor = _node => {
     const node = /** @type {import('mdast').Code} */ (_node);
-    if (node.lang === 'js' && node.meta === 'demo' && typeof node.value === 'string') {
+    if (isDemoCodeNode(node) && typeof node.value === 'string') {
       for (const exported of parseExports(node.value)[1]) {
         demoNames.push(exported.ln || exported.n);
       }

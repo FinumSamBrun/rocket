@@ -131,6 +131,7 @@ export async function resolveRocketIconAsset(requestPath, options = {}) {
   }
 
   const librarySegment = match[1];
+  const nameSegment = match[2];
   const resolver = createIconResolver({
     layoutIconLibraries: options.layoutIconLibraries,
     layoutDefaultIconLibrary: options.layoutDefaultIconLibrary,
@@ -144,6 +145,10 @@ export async function resolveRocketIconAsset(requestPath, options = {}) {
     }
     const icons = await indexIconLibrary(library, config);
     for (const [name, svg] of icons) {
+      // hashing every icon's SVG is expensive, so narrow by name first
+      if (sanitizePathSegment(name) !== nameSegment) {
+        continue;
+      }
       const url = iconAssetUrl({ library, name, svg });
       if (url === requestPath) {
         return { url, svg, library, name };

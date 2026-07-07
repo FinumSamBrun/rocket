@@ -262,10 +262,7 @@ export const atlasHeroLayout = (pageData, data) => {
   const heroEyebrow = hero.eyebrow ?? hero.sloganTop;
   const heroTitle = hero.title ?? hero.sloganBottom ?? pageData.title;
   const siteName = pageData.siteHeadMetadata?.siteName ?? pageData.title;
-  const navLinks = data.headerData.navLinks ?? [
-    { text: 'Docs', href: hero.documentationLink },
-    { text: 'Examples', href: '/examples' },
-  ];
+  const navLinks = data.headerData.navLinks ?? [{ text: 'Docs', href: hero.documentationLink }];
 
   return document(
     pageData,

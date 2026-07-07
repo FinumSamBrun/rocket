@@ -3,7 +3,12 @@ import { parseComponents } from './components.js';
 
 /** @typedef {import('./page-runtime.js').PageModuleLoaderOptions} PageModuleLoaderOptions */
 
-export function createStaticPageModuleLoader() {
+/**
+ * The Page Module Loader used by both the development server and static builds.
+ * Loading goes through Rocket's import hooks, which behave the same in both
+ * runtime environments.
+ */
+export function createPageModuleLoader() {
   return {
     /**
      * @param {PageModuleLoaderOptions} options

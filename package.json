@@ -51,7 +51,7 @@
     "build": "rm -rf dist && npx rocket build",
     "build:start": "npx http-server dist -o",
     "ai:do": "node scripts/codex-issue-loop.js",
-    "ai:do:loop": "node scripts/codex-issue-loop.js --max 6",
+    "ai:do-loop": "node scripts/codex-issue-loop.js --max 6",
     "ai:check": "node scripts/codex-issue-loop.js --dry-run",
     "lint": "eslint . --ignore-pattern .gitignore && prettier \"**/*.{ts,js,json,md}\" --check --ignore-path .gitignore --ignore-path .prettierignore",
     "format": "eslint . --ignore-pattern .gitignore --fix && prettier \"**/*.{ts,js,json,md}\" --write --ignore-path .gitignore --ignore-path .prettierignore",
@@ -65,18 +65,6 @@
     "prepack": "npm run types",
     "release": "changeset publish"
   },
-  "eslintConfig": {
-    "overrides": [
-      {
-        "files": [
-          "*.demo.js"
-        ],
-        "rules": {
-          "no-console": "off"
-        }
-      }
-    ]
-  },
   "bin": {
     "rocket": "src/cli/cli.js"
   },
@@ -86,7 +74,7 @@
     "@sparticuz/chromium": "^148.0.0",
     "@web/dev-server": "^0.4.6",
     "bootstrap-icons": "^1.13.1",
-    "commander": "14.0.3",
+    "commander": "^14.0.3",
     "es-module-lexer": "^2.1.0",
     "lit": "^3.3.3",
     "parse5": "^7.3.0",
@@ -98,40 +86,33 @@
     "rehype-stringify": "^10.0.1",
     "remark-gfm": "^4.0.1",
     "remark-rehype": "^11.1.2",
-    "typescript": "6.0.3",
+    "typescript": "^6.0.3",
     "unified": "^11.0.5",
-    "unist-util-inspect": "8.1.0",
     "unist-util-remove": "^4.0.0",
     "unist-util-visit": "^5.1.0",
-    "urlpattern-polyfill": "10.1.0",
+    "urlpattern-polyfill": "^10.1.0",
     "vite": "^8.0.14"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "@eslint/eslintrc": "^3.3.5",
     "@eslint/js": "^10.0.1",
-    "@netlify/functions": "^5.2.2",
     "@open-wc/testing": "^4.0.0",
     "@types/hast": "^3.0.4",
-    "@types/mdast": "4.0.4",
+    "@types/mdast": "^4.0.4",
     "@types/node": "^24.12.4",
     "@typescript-eslint/eslint-plugin": "^8.59.4",
     "@typescript-eslint/parser": "^8.59.4",
-    "@web/mocks": "^2.0.0",
     "@web/test-runner": "^0.20.2",
-    "@web/test-runner-playwright": "^0.11.1",
-    "dotenv": "^17.4.2",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-no-only-tests": "^3.4.0",
     "globals": "^17.6.0",
     "netlify-cli": "^26.0.2",
-    "patch-package": "^8.0.1",
     "prettier": "^3.8.3",
     "prettier-plugin-packagejson": "^3.0.2",
-    "typescript": "6.0.3",
     "typescript-eslint": "^8.59.4",
-    "vfile": "6.0.3",
+    "vfile": "^6.0.3",
     "wireit": "^0.14.12"
   },
   "engines": {
@@ -145,7 +126,7 @@
   },
   "wireit": {
     "deploy": {
-      "command": "rm -f ../../node_modules/ssh2/lib/protocol/crypto/build/Release/sshcrypto.node && netlify deploy --prod --site 2439aca3-b7d1-495c-bb8a-478ce089b666 --no-build",
+      "command": "netlify deploy --prod --site 2439aca3-b7d1-495c-bb8a-478ce089b666 --no-build",
       "files": [
         "dist/**/*"
       ],
@@ -159,7 +140,8 @@
       "command": "tsc --build --pretty",
       "files": [
         "src/**/*",
-        "types/**/*",
+        "exports/**/*",
+        "docs/**/*.js",
         "tsconfig.json"
       ],
       "output": [
@@ -186,6 +168,7 @@
       "files": [
         "exports/**/*",
         "src/**/*",
+        "scripts/**/*.js",
         "!src/**/*.test-browser.js"
       ],
       "output": []

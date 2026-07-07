@@ -1,5 +1,5 @@
 import { collectResult } from '@lit-labs/ssr/lib/render-result.js';
-import { URLPattern } from 'urlpattern-polyfill';
+import { routePattern } from './route-pattern.js';
 import { layout, singleDemoLayout } from './layouts/layout.js';
 import { PageData } from './PageData.js';
 import { finalizeRocketIcons } from './icons.js';
@@ -134,11 +134,18 @@ export class PageRuntime {
       });
     }
 
-    throw new Error('Unsupported Page module kind');
+    throw new PageRuntimeError(
+      'INVALID_PAGE_MODULE',
+      `Unsupported Page module kind for ${pageMatch.routePath}`,
+      { page: pageMatch.page, routePath: pageMatch.routePath },
+    );
   }
 }
 
 /**
+ * Redirect sources intentionally match the request path exactly (no
+ * trailing-slash normalization) so authors control both URL forms explicitly.
+ *
  * @param {string} pathname
  * @param {RedirectConfig[] | undefined} redirects
  */
@@ -466,7 +473,7 @@ function archivePageNumber(variant) {
  * @param {string} routePath
  */
 function matchPagePath(pathname, origin, routePath) {
-  const pattern = new URLPattern({ pathname: routePath });
+  const pattern = routePattern(routePath);
   return pattern.exec(pathname, origin);
 }
 

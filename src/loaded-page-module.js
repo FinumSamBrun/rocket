@@ -92,6 +92,8 @@ function normalizeMarkdownPageContent(rawModule, { parseComponents }) {
  */
 function hasBrowserLoadedComponents(components) {
   return Object.values(components).some(
-    component => component.loading === 'client' || component.loading.startsWith('hydrate:'),
+    component =>
+      component.loading === 'client' ||
+      (typeof component.loading === 'string' && component.loading.startsWith('hydrate:')),
   );
 }

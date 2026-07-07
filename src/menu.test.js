@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { treeFromPages } from './menu.js';
+import { render } from '@lit-labs/ssr';
+import { collectResult } from '@lit-labs/ssr/lib/render-result.js';
+import { defaultHtmlMenu, treeFromPages } from './menu.js';
 
 describe('treeFromPages', () => {
   it('01: groups a page under a custom menu parent without changing the page URL', () => {
@@ -140,6 +142,40 @@ describe('treeFromPages', () => {
     assert.equal(pageTree.children[0].linkText, 'Setup');
     assert.equal(pageTree.children[0].children[0].linkText, 'Start with AI');
     assert.equal(pageTree.children[0].children[0].iconName, 'stars');
+  });
+
+  it('05: keeps parent menu entries intact when a dynamic path shares the prefix', () => {
+    const pageTree = treeFromPages(
+      new Map([
+        ['/', page('/', 'Home', { menu: false })],
+        ['/blog/', page('/blog/', 'Blog')],
+        ['/blog/:slug/', page('/blog/:slug/', 'Blog Post')],
+      ]),
+    );
+
+    assert.equal(pageTree.children.length, 1);
+    assert.equal(pageTree.children[0].url, '/blog/');
+    assert.equal(pageTree.children[0].linkText, 'Blog');
+  });
+});
+
+describe('defaultHtmlMenu', () => {
+  it('01: nests child lists inside the parent list item and renders no-link sections as text', async () => {
+    const pageTree = treeFromPages(
+      new Map([
+        ['/', page('/', 'Home', { menu: false })],
+        ['/guides/component-loading', page('/guides/component-loading', 'Component Loading')],
+      ]),
+    );
+
+    const rendered = await collectResult(render(defaultHtmlMenu(pageTree)));
+    const markup = rendered.replace(/<!--[\s\S]*?-->|<\?>/g, '');
+
+    assert.match(markup, /<span>Guides<\/span>/);
+    assert.doesNotMatch(markup, /<a href="">/);
+    // the nested <ul> must live inside the parent <li> to be valid HTML
+    assert.match(markup, /<li>[\s\S]*?Guides[\s\S]*?<ul>[\s\S]*?Component Loading[\s\S]*?<\/li>/);
+    assert.doesNotMatch(markup, /<\/li>\s*<ul>/);
   });
 });
 

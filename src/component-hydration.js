@@ -30,7 +30,7 @@ export function createComponentHydration({
         serverOnlyComponents.push({ name, file, className, module });
       } else if (loading === 'client') {
         clientComponents.push({ name, file, className });
-      } else if (loading.startsWith('hydrate:')) {
+      } else if (isHydrateLoading(loading)) {
         const module = await loadComponentModule(file);
         hydratedComponents.push({
           name,
@@ -39,13 +39,21 @@ export function createComponentHydration({
           module,
           strategy: loading.slice('hydrate:'.length),
         });
+      } else {
+        throw new Error(
+          `Registered Component "${name}" has an invalid loading value ${JSON.stringify(
+            loading,
+          )}. Use 'server', 'client', or 'hydrate:<strategy>'.`,
+        );
       }
     }
 
     const registry = customElementsRegistry || customElements;
-    registry.__definitions.clear();
+    // The @lit-labs/ssr-dom-shim registry keeps definitions between renders;
+    // spec-compliant registries have no such internals to reset.
+    registry.__definitions?.clear();
     // @ts-ignore
-    registry.__reverseDefinitions.clear();
+    registry.__reverseDefinitions?.clear();
     for (const component of serverOnlyComponents.concat(hydratedComponents)) {
       if (!component.module[component.className]) {
         throw new Error(
@@ -83,4 +91,16 @@ export function createComponentHydration({
     }
     return clientCode;
   };
+}
+
+/**
+ * @param {unknown} loading
+ * @returns {loading is string}
+ */
+function isHydrateLoading(loading) {
+  return (
+    typeof loading === 'string' &&
+    loading.startsWith('hydrate:') &&
+    loading.length > 'hydrate:'.length
+  );
 }

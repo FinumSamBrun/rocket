@@ -3,6 +3,7 @@ import {
   DEFAULT_SOCIAL_PREVIEW_IMAGE_WIDTH,
   defaultSocialPreviewTemplate,
 } from './defaultSocialPreviewTemplate.js';
+import { debounce } from './debounce.js';
 
 const DEFAULT_TITLE = 'Runtime Guide';
 const DEFAULT_DESCRIPTION = 'Learn how Acme UI components load, render, and ship with Rocket.';
@@ -81,22 +82,23 @@ export class SocialPreviewPlayground extends HTMLElement {
     this.templateFrame = null;
     /** @type {HTMLAnchorElement | null} */
     this.pngLink = null;
+    // Typing reloads the preview iframe and rewrites history, so batch keystrokes.
+    this.schedulePreviewUpdate = debounce(() => this.updatePreviewResources(), 150);
   }
 
   connectedCallback() {
-    if (this.shadowRoot) {
-      return;
+    if (!this.shadowRoot) {
+      this.config = this.readConfig();
+      this.state = this.initialState(this.config);
+      this.attachShadow({ mode: 'open' });
+      this.render();
+      this.connectControls();
+      this.updatePreviewResources();
     }
-    this.config = this.readConfig();
-    this.state = this.initialState(this.config);
-    const shadowRoot = this.attachShadow({ mode: 'open' });
-    this.render();
-    this.connectControls();
-    this.updatePreviewResources();
     this.resizePreviewFrame();
-    const frame = shadowRoot.querySelector('[data-social-preview-frame-shell]');
+    const frame = this.shadowRoot?.querySelector('[data-social-preview-frame-shell]');
     if (frame && 'ResizeObserver' in window) {
-      this.resizeObserver = new ResizeObserver(() => this.resizePreviewFrame());
+      this.resizeObserver ??= new ResizeObserver(() => this.resizePreviewFrame());
       this.resizeObserver.observe(frame);
     }
   }
@@ -160,8 +162,8 @@ export class SocialPreviewPlayground extends HTMLElement {
     const page = config.pages.find(candidate => candidate.path === config.selectedPath);
     return {
       selectedPath: page?.path ?? config.selectedPath,
-      title: config.defaultTitle || page?.title || DEFAULT_TITLE,
-      description: config.defaultDescription || page?.description || DEFAULT_DESCRIPTION,
+      title: page?.title || config.defaultTitle,
+      description: page?.description || config.defaultDescription,
     };
   }
 
@@ -423,11 +425,11 @@ export class SocialPreviewPlayground extends HTMLElement {
     });
     titleInput?.addEventListener('input', () => {
       this.state.title = titleInput.value;
-      this.updatePreviewResources();
+      this.schedulePreviewUpdate();
     });
     descriptionInput?.addEventListener('input', () => {
       this.state.description = descriptionInput.value;
-      this.updatePreviewResources();
+      this.schedulePreviewUpdate();
     });
     shadowRoot
       .querySelector('button[data-social-preview-previous-page]')
@@ -506,7 +508,11 @@ export class SocialPreviewPlayground extends HTMLElement {
       return;
     }
     if (this.config.templateUrl) {
-      this.templateFrame.src = this.socialPreviewResourcePath(this.config.templateUrl);
+      const templateSrc = this.socialPreviewResourcePath(this.config.templateUrl);
+      // assigning an unchanged src still reloads the iframe, so compare first
+      if (this.templateFrame.getAttribute('src') !== templateSrc) {
+        this.templateFrame.src = templateSrc;
+      }
     } else {
       this.templateFrame.srcdoc = this.previewHtml();
     }
@@ -515,11 +521,11 @@ export class SocialPreviewPlayground extends HTMLElement {
       this.pngLink.download = this.selectedPage()?.downloadFilename ?? 'social-preview.png';
     }
     if (this.config.syncHistory && this.config.workflowUrl) {
-      window.history.replaceState(
-        null,
-        '',
-        this.socialPreviewResourcePath(this.config.workflowUrl),
-      );
+      const workflowPath = this.socialPreviewResourcePath(this.config.workflowUrl);
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      if (workflowPath !== currentPath) {
+        window.history.replaceState(null, '', workflowPath);
+      }
     }
   }
 

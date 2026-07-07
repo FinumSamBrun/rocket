@@ -689,7 +689,8 @@ The path is resolved from the current working directory.
 
 - `rocket-config.js must have a default export`: export the config object as `default`.
 - Page is missing: check `includeGlobs`, `excludeRegex`, file extension, and `config.path`.
-- Dev server port is busy: change `port` with `adjustDevServerConfig`.
+- Dev server port is busy: run `rocket start --port <port>`, or change `port` permanently with
+  `adjustDevServerConfig`.
 - Build fails with server-rendered Pages: add an adapter or change those Pages back to static
   rendering.
 - Sitemap build fails without a Site Origin: add `siteOrigin` or disable

@@ -1,26 +1,10 @@
 import { html } from 'lit';
 import { document } from '../layout-helper.js';
 import { resolve } from '../../resolve.js';
-import { renderStylesheets } from './atlasDocLayout.js';
+import { renderHeaderLogo, renderStylesheets } from './atlasDocLayout.js';
 
 /** @type {import('@rocket/js/types.js').Components} */
 export const atlasNotFoundComponents = {};
-
-/**
- * Renders the header logo.
- * @param {Array<string>} logo
- */
-function renderHeaderLogo(logo) {
-  if (logo.length === 1) {
-    return html`<img src=${logo[0]} alt="Logo" width="130" />`;
-  } else if (logo.length === 2) {
-    return html`
-      <img src=${logo[0]} alt="Logo" width="36" />
-      <img src=${logo[1]} alt="Logo Text" width="88" />
-    `;
-  }
-  return html`<b>Header logo should only contain one or two images.</b>`;
-}
 
 /**
  * @param {Array<{url: string, name: string, label?: string}>} socials
@@ -33,6 +17,7 @@ function renderSocialLinks(socials) {
 export const atlasNotFoundLayout = (pageData, data) => {
   const homeLink = data.headerData.homeLink || '/';
   const rocketLogo = data.headerData.logo[0];
+  const siteName = pageData.siteHeadMetadata?.siteName ?? pageData.title;
 
   return document(
     pageData,
@@ -40,7 +25,7 @@ export const atlasNotFoundLayout = (pageData, data) => {
       <div class="atlas-not-found">
         <header class="atlas-not-found-header">
           <a href=${homeLink} class="atlas-not-found-logo">
-            ${renderHeaderLogo(data.headerData.logo)}
+            ${renderHeaderLogo(data.headerData.logo, siteName)}
           </a>
           <nav class="atlas-not-found-links" aria-label="Project links">
             ${renderSocialLinks(data.headerData.socials)}
@@ -54,7 +39,9 @@ export const atlasNotFoundLayout = (pageData, data) => {
             <div class="atlas-not-found-stars"></div>
             <div class="atlas-not-found-orbit"></div>
             <p class="atlas-not-found-code">404</p>
-            <img class="atlas-not-found-rocket" src=${rocketLogo} alt="" />
+            ${rocketLogo
+              ? html`<img class="atlas-not-found-rocket" src=${rocketLogo} alt="" />`
+              : html``}
           </div>
         </main>
       </div>

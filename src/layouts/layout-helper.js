@@ -44,8 +44,8 @@ export function document(
       </head>
       <body>
         ${menu
-          ? html`<div id="menu">${defaultHtmlMenu(data.pageTree)}</div>
-              <div id="content">${content}</div>`
+          ? html`<nav id="menu" aria-label="Site">${defaultHtmlMenu(data.pageTree)}</nav>
+              <main id="content">${content}</main>`
           : content}
       </body>
     </html>`;

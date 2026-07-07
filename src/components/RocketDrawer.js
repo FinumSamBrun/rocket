@@ -13,11 +13,45 @@ export class RocketDrawer extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._onDocClick = this._onDocClick.bind(this);
+    this._onKeyDown = this._onKeyDown.bind(this);
     document.addEventListener('click', this._onDocClick, { capture: true });
+    document.addEventListener('keydown', this._onKeyDown);
   }
   disconnectedCallback() {
     document.removeEventListener('click', this._onDocClick, { capture: true });
+    document.removeEventListener('keydown', this._onKeyDown);
     super.disconnectedCallback();
+  }
+
+  /**
+   * @param {KeyboardEvent} ev
+   */
+  _onKeyDown(ev) {
+    if (ev.key === 'Escape' && this.open) {
+      this.close();
+    }
+  }
+
+  /**
+   * @param {Map<string, unknown>} changedProperties
+   */
+  updated(changedProperties) {
+    // skip the initial render so the drawer never steals focus on page load
+    if (!changedProperties.has('open') || changedProperties.get('open') === undefined) {
+      return;
+    }
+    if (this.open) {
+      this.shadowRoot?.getElementById('content')?.focus();
+    } else {
+      const invokerSlot = /** @type {HTMLSlotElement | null} */ (
+        this.shadowRoot?.querySelector('slot[name="invoker"]') ?? null
+      );
+      const assigned = /** @type {HTMLElement | undefined} */ (invokerSlot?.assignedElements()[0]);
+      const fallback = /** @type {HTMLElement | null} */ (
+        this.shadowRoot?.querySelector('.burger-menu') ?? null
+      );
+      (assigned ?? fallback)?.focus();
+    }
   }
 
   render() {
@@ -36,7 +70,7 @@ export class RocketDrawer extends LitElement {
       </slot>
 
       <dialog ?open=${this.open} id="rd-dialog">
-        <div id="content">
+        <div id="content" tabindex="-1">
           <slot></slot>
         </div>
       </dialog>
@@ -149,23 +183,23 @@ export class RocketDrawer extends LitElement {
       overflow: hidden;
       opacity: 0;
       pointer-events: none;
+      /* visibility keeps the closed drawer out of tab order and the a11y tree */
+      visibility: hidden;
       transition:
         width 0.35s var(--rd-ease-3),
-        opacity 0.35s var(--rd-ease-3);
+        opacity 0.35s var(--rd-ease-3),
+        visibility 0s var(--rd-ease-3) 0.35s;
       will-change: width;
     }
     dialog[open] {
       width: var(--rd-target-width);
       opacity: 1;
       pointer-events: auto;
-    }
-    dialog::backdrop {
-      background: rgba(0, 0, 0, 0.4);
-      transition: opacity 0.35s var(--rd-ease-3);
-      opacity: 0;
-    }
-    dialog[open]::backdrop {
-      opacity: 1;
+      visibility: visible;
+      transition:
+        width 0.35s var(--rd-ease-3),
+        opacity 0.35s var(--rd-ease-3),
+        visibility 0s;
     }
 
     #content {

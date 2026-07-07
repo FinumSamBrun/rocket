@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { debounce } from './debounce.js';
 import path from 'node:path';
 import { createIconAssetStore, rocketIconRuntimeOutputs } from './icons.js';
-import { createDevelopmentPageModuleLoader } from './development-page-module-loader.js';
+import { createPageModuleLoader } from './page-module-loader.js';
 import { PageRuntime, PageRuntimeError } from './page-runtime.js';
 import {
   PUBLIC_ASSETS_DIR,
@@ -22,6 +22,9 @@ let pageRegistry = new Map();
 
 /** @type {Map<string, Set<string>>} */
 let modules = new Map();
+
+/** @type {import('./publicAssets.js').PublicAsset[] | null} */
+let cachedPublicAssets = null;
 
 /** @typedef {import('@rocket/js/types.js').UrlLifecycleConfig} UrlLifecycleConfig */
 /** @typedef {{ urlLifecycle?: UrlLifecycleConfig; siteHeadMetadata?: import('@rocket/js/types.js').SiteHeadMetadataConfig; siteOrigin?: string; siteDiscoverability?: import('@rocket/js/types.js').SiteDiscoverabilityConfig; iconLibraries?: import('@rocket/js/types.js').IconLibrariesConfig; defaultIconLibrary?: string; captureSocialPreviewImage?: import('./socialPreviewImages.js').SocialPreviewCapture; watch?: boolean }} RocketDevServerPluginOptions */
@@ -84,6 +87,10 @@ export default (include, exclude, resolverPort, options = {}) => {
       const publicDir = path.join(process.cwd(), PUBLIC_ASSETS_DIR);
       if (watchEnabled && fs.existsSync(publicDir)) {
         fileWatcher?.add(publicDir);
+        // re-discover and re-validate Public Assets on the next request
+        fileWatcher?.on?.('all', () => {
+          cachedPublicAssets = null;
+        });
       }
     },
     serverStop() {
@@ -128,7 +135,7 @@ export default (include, exclude, resolverPort, options = {}) => {
           type: 'image/svg+xml',
         };
       }
-      const publicAssets = validateDevelopmentPublicAssets(pluginOptions);
+      const publicAssets = cachedPublicAssets ?? validateDevelopmentPublicAssets(pluginOptions);
       const publicAsset = findPublicAsset(publicAssets, context.path);
       if (publicAsset) {
         return /** @type {any} */ ({
@@ -196,6 +203,7 @@ function validateDevelopmentPublicAssets(pluginOptions) {
     }),
     emitRedirectFallbacks: false,
   });
+  cachedPublicAssets = publicAssets;
   return publicAssets;
 }
 
@@ -222,7 +230,7 @@ async function renderPageRuntime(
 ) {
   const pageRuntime = new PageRuntime({
     pages: pageRegistry,
-    pageModuleLoader: createDevelopmentPageModuleLoader(),
+    pageModuleLoader: createPageModuleLoader(),
     urlLifecycle,
     siteHeadMetadata,
     siteOrigin,

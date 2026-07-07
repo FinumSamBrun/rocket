@@ -154,6 +154,7 @@ Component becomes interactive in the browser:
 - `hydrate:onVisible` for below-the-fold or expensive components.
 - `hydrate:onClick` for panels, menus, and controls that can activate on first intent.
 - `hydrate:onFocus` for fields and form controls.
+- `hydrate:onHover` for components that should become interactive when pointed at.
 - `hydrate:onMedia('(max-width: 768px)')` for responsive behavior that only applies at specific
   viewport sizes.
 

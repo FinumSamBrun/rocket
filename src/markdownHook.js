@@ -102,7 +102,11 @@ export async function resolve(specifier, context, nextResolve) {
       },
     };
     if (match[0] === 'Setup' && isLocalFile(url)) {
-      await sendPort.sendAndWait({
+      // Fire-and-forget: awaiting a reply here can deadlock. The main thread
+      // blocks in Atomics.wait during e.g. a nested module.register() call, so
+      // it may be unable to answer until this resolve returns. postMessage
+      // delivery is ordered, which is all the dependency tracking needs.
+      sendPort.postMessage({
         parent: getPath(/** @type {string} */ (context.parentURL)),
         url: getPath(resolve.url),
       });
@@ -116,7 +120,8 @@ export async function resolve(specifier, context, nextResolve) {
         ...resolve.importAttributes,
         type: 'cache' + lastReload.toString(36),
       };
-      await sendPort.sendAndWait({
+      // Fire-and-forget, see above.
+      sendPort.postMessage({
         parent: getPath(/** @type {string} */ (context.parentURL)),
         url: getPath(resolve.url),
       });

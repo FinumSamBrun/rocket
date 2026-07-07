@@ -1,5 +1,7 @@
 /** Runs on: server */
+import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { validateIconLibrariesConfig } from './icons.js';
 
 const REDIRECT_STATUSES = new Set([301, 302, 307, 308]);
@@ -9,14 +11,25 @@ const REDIRECT_STATUSES = new Set([301, 302, 307, 308]);
  * @returns {Promise<import("@rocket/js/types.js").ResolvedRocketConfig>}
  */
 export async function readConfig(filePath) {
-  const configFile = await import(
-    filePath ? path.join(process.cwd(), filePath) : path.join(process.cwd(), 'rocket-config.js')
-  );
+  const configPath = path.join(process.cwd(), filePath || 'rocket-config.js');
+  if (!existsSync(configPath)) {
+    throw new Error(
+      `No Rocket config found at ${configPath}. ` +
+        `Run "npx rocket init" to create one, or pass --config-file <path>.`,
+    );
+  }
+  const configFile = await import(pathToFileURL(configPath).href);
   if (configFile.default === undefined) {
     throw new Error('rocket-config.js must have a default export');
   }
   /** @type {import("@rocket/js/types.js").RocketConfig} */
   const config = configFile.default;
+  if (!Array.isArray(config.includeGlobs)) {
+    throw new Error(
+      `Invalid Rocket config in ${configPath}: includeGlobs must be an array of glob strings, ` +
+        `e.g. includeGlobs: ['docs/pages/**/*.rocket.{md,js}'].`,
+    );
+  }
   validateRedirectConfig(config.urlLifecycle?.redirects);
   const siteHeadMetadata = normalizeSiteHeadMetadataConfig(config.siteHeadMetadata);
   validateIconLibrariesConfig(config.iconLibraries);
@@ -24,7 +37,7 @@ export async function readConfig(filePath) {
   const siteOrigin = siteHeadMetadata
     ? requireSiteHeadMetadataSiteOrigin(config.siteOrigin)
     : config.siteOrigin;
-  config.includeGlobs = config.includeGlobs.map(glob => {
+  const includeGlobs = config.includeGlobs.map(glob => {
     if (!glob.includes('*') && !glob.includes('.')) {
       // If the glob is a directory, include all files in the directory
       return `${glob}${glob.endsWith('/') ? '' : '/'}**`;
@@ -36,6 +49,7 @@ export async function readConfig(filePath) {
     excludeRegex: [],
     adjustDevServerConfig: _ => _,
     ...config,
+    includeGlobs,
     ...(siteOrigin ? { siteOrigin } : {}),
     ...(siteHeadMetadata ? { siteHeadMetadata } : {}),
   };
@@ -248,6 +262,14 @@ function invalidSiteOriginError(siteOrigin) {
 function validateRedirectConfig(redirects = []) {
   const sources = new Set();
   for (const redirect of redirects) {
+    // whitespace would corrupt whitespace-delimited outputs like Netlify _redirects
+    if (containsWhitespace(redirect.source) || containsWhitespace(redirect.target)) {
+      throw new Error(
+        `Invalid Redirect from ${JSON.stringify(redirect.source)} to ${JSON.stringify(
+          redirect.target,
+        )}. Redirect paths must not contain whitespace; percent-encode it instead (%20).`,
+      );
+    }
     if (!isInternalAbsolutePath(redirect.source)) {
       throw new Error(
         `Invalid Redirect source ${JSON.stringify(
@@ -281,6 +303,13 @@ function validateRedirectConfig(redirects = []) {
  */
 function isInternalAbsolutePath(value) {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
+}
+
+/**
+ * @param {unknown} value
+ */
+function containsWhitespace(value) {
+  return typeof value === 'string' && /\s/.test(value);
 }
 
 /**

@@ -21,56 +21,49 @@ export async function getPages(root, include, exclude) {
     cwd: root,
     exclude: ignoreFn(exclude),
   })) {
-    if (file.endsWith('.rocket.md')) {
-      const module = await tryImport(`./${p.relative(process.cwd(), file)}`);
-      const path = module.config?.path;
-      if (!path) {
-        throw new Error('No path found in file: ' + file);
-      }
-      if (pages.has(path)) {
-        throw new Error(
-          'Duplicate path found: ' + path + ', used in ' + file + ' and ' + pages.get(path)?.file,
-        );
-      }
-      const normalizedModule = normalizePageModule(file, module);
-      validateMarkdownPageComponents(file, normalizedModule);
-      const linkText =
-        (normalizedModule.config.menu === false
-          ? undefined
-          : normalizedModule.config.menu?.linkText) || normalizedModule._$menuLinkText$;
-      const metadataConfig = normalizePageMetadataConfig(file, normalizedModule.config.metadata);
-      const title = metadataConfig.title || module._$title$ || linkText || titleFromPath(path);
-      pages.set(path, {
-        file,
-        module: normalizedModule,
-        metadata: pageMetadata(title, linkText, metadataConfig),
-        demoNames: normalizedModule._$demoNames$ || [],
-      });
-    } else if (file.endsWith('.rocket.js')) {
-      /** @type {import('@rocket/js/types.js').Module} */
-      const module = await import(`./${p.relative(process.cwd(), file)}`, {
-        with: { type: 'rocketSetupJsInitial' },
-      });
-      const path = module.config?.path;
-      if (!path) {
-        throw new Error('No path found in file: ' + file);
-      }
-      if (pages.has(path)) {
-        throw new Error(
-          'Duplicate path found: ' + path + ', used in ' + file + ' and ' + pages.get(path)?.file,
-        );
-      }
-      const normalizedModule = normalizePageModule(file, module);
-      const linkText =
-        normalizedModule.config.menu === false ? undefined : normalizedModule.config.menu?.linkText;
-      const metadataConfig = normalizePageMetadataConfig(file, normalizedModule.config.metadata);
-      const title = metadataConfig.title || linkText || titleFromPath(path);
-      pages.set(path, {
-        file,
-        module: normalizedModule,
-        metadata: pageMetadata(title, linkText, metadataConfig),
-      });
+    const kind = file.endsWith('.rocket.md')
+      ? 'md'
+      : file.endsWith('.rocket.js')
+        ? 'js'
+        : undefined;
+    if (!kind) {
+      continue;
     }
+    const specifier = `./${p.relative(process.cwd(), p.resolve(root, file))}`;
+    /** @type {import('@rocket/js/types.js').Module} */
+    const module =
+      kind === 'md'
+        ? await tryImport(specifier)
+        : await import(specifier, { with: { type: 'rocketSetupJsInitial' } });
+    const path = module.config?.path;
+    if (!path) {
+      throw new Error('No path found in file: ' + file);
+    }
+    if (pages.has(path)) {
+      throw new Error(
+        'Duplicate path found: ' + path + ', used in ' + file + ' and ' + pages.get(path)?.file,
+      );
+    }
+    const normalizedModule = normalizePageModule(file, module);
+    if (kind === 'md') {
+      validateMarkdownPageComponents(file, normalizedModule);
+    }
+    const configLinkText =
+      normalizedModule.config.menu === false ? undefined : normalizedModule.config.menu?.linkText;
+    const linkText =
+      kind === 'md' ? configLinkText || normalizedModule._$menuLinkText$ : configLinkText;
+    const metadataConfig = normalizePageMetadataConfig(file, normalizedModule.config.metadata);
+    const title =
+      metadataConfig.title ||
+      (kind === 'md' ? module._$title$ : undefined) ||
+      linkText ||
+      titleFromPath(path);
+    pages.set(path, {
+      file,
+      module: normalizedModule,
+      metadata: pageMetadata(title, linkText, metadataConfig),
+      ...(kind === 'md' ? { demoNames: normalizedModule._$demoNames$ || [] } : {}),
+    });
   }
   return pages;
 }
@@ -448,10 +441,11 @@ function ignoreFn(exclude) {
    * @param {string} path
    */
   return function (path) {
+    if (path.includes('node_modules')) {
+      return true;
+    }
     for (const pattern of exclude) {
-      if (path.includes('node_modules')) {
-        return true;
-      } else if (typeof pattern === 'string') {
+      if (typeof pattern === 'string') {
         if (path.includes(pattern)) return true;
       } else {
         if (pattern.test(path)) return true;
@@ -466,12 +460,9 @@ function ignoreFn(exclude) {
  * @returns {string}
  */
 function titleFromPath(path) {
-  const parts = path.split('/');
+  const parts = path.split('/').filter(Boolean);
   const last = parts.findLast(part => !part.startsWith(':'));
-  if (!last) {
-    return parts[0] ? capitalize(parts[0].slice(1)) : 'Home';
-  }
-  return capitalize(last);
+  return last ? capitalize(last) : 'Home';
 }
 
 /**

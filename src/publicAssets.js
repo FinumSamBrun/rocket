@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { URLPattern } from 'urlpattern-polyfill';
+import { routePattern } from './route-pattern.js';
 import { paginatedArchivePaths } from './page-pagination.js';
 import { normalizeDocumentPath, standaloneDemoPaths } from './standalone-demo-url.js';
 import { needsDefaultSocialPreviewImage, publicSocialPreviewPages } from './socialPreviewImages.js';
@@ -250,7 +250,7 @@ function generatedOutputClaims({ pages, generatedPages, config, emitRedirectFall
  */
 function matchingPage(requestPath, pages) {
   for (const [routePath, page] of pages) {
-    const pattern = new URLPattern({ pathname: routePath });
+    const pattern = routePattern(routePath);
     if (pattern.exec(requestPath, 'http://localhost')) {
       return { routePath, page };
     }

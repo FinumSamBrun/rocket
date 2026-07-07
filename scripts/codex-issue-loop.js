@@ -91,11 +91,10 @@ async function main() {
 
   const branch = capture('git', ['branch', '--show-current'], repoRoot).trim();
   const worktreeStatus = capture('git', ['status', '--porcelain'], repoRoot);
-  let plan = buildPlan(context);
   const activeRun = readActiveRunMarker(context);
 
   if (options.dryRun) {
-    printDryRun(context, branch, worktreeStatus, plan, activeRun);
+    printDryRun(context, branch, worktreeStatus, buildPlan(context), activeRun);
     return;
   }
 
@@ -105,20 +104,16 @@ async function main() {
     return;
   }
 
+  // plan after prepareStartState so recovered commits are reflected
+  const plan = buildPlan(context);
+  if (plan.errors.length > 0) {
+    throw new Error(formatPlanErrors(plan.errors));
+  }
+
   if (startState.resumeIssue) {
-    plan = buildPlan(context);
-    if (plan.errors.length > 0) {
-      throw new Error(formatPlanErrors(plan.errors));
-    }
     await runIssue(context, startState.resumeIssue, 1, { resume: true });
     await runEligibleIssues(context, 2);
     return;
-  }
-
-  plan = buildPlan(context);
-
-  if (plan.errors.length > 0) {
-    throw new Error(formatPlanErrors(plan.errors));
   }
 
   if (!options.skipBaselineChecks) {
@@ -342,7 +337,7 @@ async function prepareStartState(context, branch, worktreeStatus, activeRun) {
         `Dirty worktree belongs to active run ${activeRun.issue}; recovering result before selecting more issues.`,
       );
       await recoverActiveRun(context, activeRun);
-      return { recovered: true };
+      return {};
     }
 
     throw new Error(

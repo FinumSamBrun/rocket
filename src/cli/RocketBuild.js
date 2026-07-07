@@ -7,7 +7,7 @@ import path from 'node:path';
 import { PageRuntime } from '../page-runtime.js';
 import { createIconAssetStore, rocketIconRuntimeOutputs } from '../icons.js';
 import { paginatedArchivePaths } from '../page-pagination.js';
-import { createStaticPageModuleLoader } from '../static-page-module-loader.js';
+import { createPageModuleLoader } from '../page-module-loader.js';
 import { writeSiteDiscoverabilityOutputs } from '../siteDiscoverability.js';
 import { normalizeDocumentPath, standaloneDemoPaths } from '../standalone-demo-url.js';
 import {
@@ -46,6 +46,7 @@ export class RocketBuild {
 
     program
       .command('build')
+      .description('build the static site into the output directory')
       .option('-o, --output-dir <path>', 'Path where to output built files')
       .action(async ({ outputDir }) => {
         if (outputDir) {
@@ -96,6 +97,8 @@ export class RocketBuild {
       emitRedirectFallbacks: !this.cli.config.adapter,
     });
     const outDir = this.outputDir ? path.resolve(this.outputDir) : path.resolve('dist');
+    // Vite's emptyOutDir force-clears any outDir, so containment must hold on every path.
+    assertOutputDirInsideProject(outDir);
     assertPublicAssetsOutputDir({ projectRoot: process.cwd(), outDir });
 
     try {
@@ -217,7 +220,7 @@ export function splitPages(pages) {
 export async function renderStaticPages({
   pages,
   staticPages,
-  pageModuleLoader = createStaticPageModuleLoader(),
+  pageModuleLoader = createPageModuleLoader(),
   origin = 'http://localhost',
   urlLifecycle,
   siteHeadMetadata,
@@ -429,23 +432,30 @@ function writeIconAssetOutputs(iconAssetStore) {
 /**
  * @param {string} outDir
  */
-function clearExistingOutputDir(outDir) {
-  if (!existsSync(outDir)) {
-    return;
-  }
+function assertOutputDirInsideProject(outDir) {
   const projectRoot = path.resolve(process.cwd());
   const relativeOutDir = path.relative(projectRoot, outDir);
   if (
     relativeOutDir === '' ||
-    relativeOutDir.startsWith(`..${path.sep}`) ||
     relativeOutDir === '..' ||
+    relativeOutDir.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relativeOutDir)
   ) {
     throw new Error(
       `Invalid build output directory ${outDir}. ` +
-        `Rocket can only clear an existing output directory inside the project root.`,
+        `Rocket only writes build output inside the project root.`,
     );
   }
+}
+
+/**
+ * @param {string} outDir
+ */
+function clearExistingOutputDir(outDir) {
+  if (!existsSync(outDir)) {
+    return;
+  }
+  assertOutputDirInsideProject(outDir);
   rmSync(outDir, { recursive: true });
 }
 

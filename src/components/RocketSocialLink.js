@@ -2,14 +2,38 @@ import { readFileSync } from 'fs';
 import { LitElement, html, css } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
+const SUPPORTED_BRANDS = new Set([
+  'discord',
+  'github',
+  'gitlab',
+  'license',
+  'npm',
+  'slack',
+  'telegram',
+  'twitter',
+]);
+
+/** @type {Map<string, string>} */
+const iconCache = new Map();
+
 /**
  * @param {string} brandName
  * @returns {import('lit/directive.js').DirectiveResult}
  */
 function getIcon(brandName) {
   const brand = brandName.toLowerCase();
-  const fileContent = readFileSync(new URL(`./assets/${brand}.svg`, import.meta.url), 'utf8');
-  return unsafeHTML(fileContent.toString());
+  if (!SUPPORTED_BRANDS.has(brand)) {
+    throw new Error(
+      `rocket-social-link does not support name="${brandName}". ` +
+        `Supported names: ${[...SUPPORTED_BRANDS].join(', ')}.`,
+    );
+  }
+  let fileContent = iconCache.get(brand);
+  if (fileContent === undefined) {
+    fileContent = readFileSync(new URL(`./assets/${brand}.svg`, import.meta.url), 'utf8');
+    iconCache.set(brand, fileContent);
+  }
+  return unsafeHTML(fileContent);
 }
 
 export class RocketSocialLink extends LitElement {

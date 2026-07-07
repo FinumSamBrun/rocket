@@ -154,13 +154,16 @@ controls, and components that cannot render meaningful initial HTML.
 
 Use `hydrate:*` when Rocket should render useful HTML first and make it interactive later.
 
-Supported Hydration Strategies include:
+The supported Hydration Strategies are:
 
 - `hydrate:onClientLoad`
 - `hydrate:onVisible`
 - `hydrate:onClick`
 - `hydrate:onFocus`
+- `hydrate:onHover`
 - `hydrate:onMedia('(max-width: 768px)')`
+
+The parser also accepts `onIdle` and `onDelay`, but both currently behave like `onClientLoad`.
 
 Hydration conditions can be combined:
 

@@ -55,6 +55,10 @@ export function createSitemap({ pages, siteOrigin }) {
 }
 
 /**
+ * The Robots File always references the canonical Sitemap URL, even when
+ * Rocket does not generate `sitemap.xml` itself — this is documented behavior
+ * so projects can supply a sitemap through other tooling.
+ *
  * @param {{
  *   pages?: import('@rocket/js/types.js').PageRegistry;
  *   siteOrigin: string;

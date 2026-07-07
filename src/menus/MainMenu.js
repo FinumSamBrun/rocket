@@ -32,15 +32,21 @@ export class MainMenu extends LitElement {
    */
   list(page, depth = 0) {
     const title = page.linkText;
+    const isCurrent = page.url === this.currentPath;
     /** @type {any} */
-    const classes = { current: page.url === this.currentPath };
+    const classes = { current: isCurrent };
     const level = `lvl-${depth}`;
     classes[level] = true;
     return html`
       <li>
-        <a href=${ifDefined(page.menuNoLink ? undefined : page.url)} class=${classMap(classes)}
-          >${title}</a
-        >
+        ${page.menuNoLink
+          ? html`<span class=${classMap(classes)}>${title}</span>`
+          : html`<a
+              href=${ifDefined(page.url)}
+              class=${classMap(classes)}
+              aria-current=${ifDefined(isCurrent ? 'page' : undefined)}
+              >${title}</a
+            >`}
         ${page.children.length > 0
           ? html`<ul>
               ${page.children.map(child => this.list(child, depth + 1))}

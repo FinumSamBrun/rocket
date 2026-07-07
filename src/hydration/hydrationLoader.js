@@ -30,7 +30,7 @@ export class HydrationLoader {
   /**
    * @param {number} index
    * @param {object} options
-   * @param {HTMLElement[]} [options.composedPath]
+   * @param {EventTarget[]} [options.composedPath]
    * @param {Event} [options.event]
    * @returns {Promise<{ needsCleanup: boolean }>}
    */
@@ -124,11 +124,14 @@ export class HydrationLoader {
    * @param {String} param1.strategyType
    * @param {String} [param1.strategyOptions]
    * @param {Boolean} param1.resolveAble
-   * @param {Object} [options]
+   * @param {{ composedPath?: EventTarget[]; event?: Event }} [options]
    */
   async setResolveAbleOn({ target, strategyType, strategyOptions, resolveAble }, options = {}) {
     let needsCleanup = false;
-    const foundIndex = this.elements.findIndex(el => el.node === target && !el.deleteMe);
+    // Events fired on light-DOM descendants should still hydrate the host.
+    const foundIndex = this.elements.findIndex(
+      el => !el.deleteMe && (el.node === target || options.composedPath?.includes(el.node)),
+    );
     if (foundIndex !== -1) {
       const element = this.elements[foundIndex];
 
@@ -162,55 +165,61 @@ export class HydrationLoader {
 
     let needsCleanup = false;
     for (let i = 0; i < this.elements.length; i += 1) {
-      ({ needsCleanup } = await this.checkElement(i));
+      const result = await this.checkElement(i);
+      needsCleanup = needsCleanup || result.needsCleanup;
     }
     if (needsCleanup) {
-      await this.cleanup();
+      this.cleanup();
     }
 
     await this.handleOnVisible();
     await this.handleOnClick();
     await this.handleOnFocus();
+    await this.handleOnHover();
     await this.handleOnMedia();
   }
 
   async handleOnMedia() {
+    // One listener per media query; it looks up the current elements when it
+    // fires, so hydrated elements never keep stale per-element listeners alive.
+    /** @type {Set<string>} */
+    const queries = new Set();
     for (const el of this.elements) {
       for (const strategy of el.strategies) {
         if (strategy.type === 'onMedia' && strategy.options) {
-          if (!this.mediaQueries[strategy.options]) {
-            this.mediaQueries[strategy.options] = window.matchMedia(strategy.options);
-          }
-
-          // TODO: remove event listener on cleanup if element gets removed
-          this.mediaQueries[strategy.options].addEventListener('change', ev => {
-            if (ev.matches) {
-              this.setResolveAbleOn({
-                target: el.node,
-                strategyType: strategy.type,
-                strategyOptions: strategy.options,
-                resolveAble: true,
-              });
-            } else {
-              this.setResolveAbleOn({
-                target: el.node,
-                strategyType: strategy.type,
-                strategyOptions: strategy.options,
-                resolveAble: false,
-              });
-            }
-          });
-
-          // Initial check
-          if (this.mediaQueries[strategy.options].matches) {
-            this.setResolveAbleOn({
-              target: el.node,
-              strategyType: strategy.type,
-              strategyOptions: strategy.options,
-              resolveAble: true,
-            });
-          }
+          queries.add(strategy.options);
         }
+      }
+    }
+
+    for (const query of queries) {
+      if (!this.mediaQueries[query]) {
+        const mediaQuery = window.matchMedia(query);
+        this.mediaQueries[query] = mediaQuery;
+        mediaQuery.addEventListener('change', ev => {
+          this.updateOnMediaElements(query, ev.matches);
+        });
+      }
+      if (this.mediaQueries[query].matches) {
+        await this.updateOnMediaElements(query, true);
+      }
+    }
+  }
+
+  /**
+   * @param {string} query
+   * @param {boolean} matches
+   */
+  async updateOnMediaElements(query, matches) {
+    // iterate over a copy — hydration mutates this.elements
+    for (const el of [...this.elements]) {
+      if (el.strategies.some(s => s.type === 'onMedia' && s.options === query)) {
+        await this.setResolveAbleOn({
+          target: el.node,
+          strategyType: 'onMedia',
+          strategyOptions: query,
+          resolveAble: matches,
+        });
       }
     }
   }
@@ -220,9 +229,11 @@ export class HydrationLoader {
       if (!ev.target) {
         return;
       }
+      // composedPath() only returns the full path during dispatch, so capture it now
+      const composedPath = ev.composedPath();
       this.setResolveAbleOn(
         { target: ev.target, strategyType: 'onClick', resolveAble: true },
-        { composedPath: ev.composedPath(), event: ev },
+        { composedPath, event: ev },
       );
 
       // reset the onClick resolveAble if the click did not result in the hydration of the element
@@ -230,11 +241,10 @@ export class HydrationLoader {
         if (!ev.target) {
           return;
         }
-        this.setResolveAbleOn({
-          target: ev.target,
-          strategyType: 'onClick',
-          resolveAble: false,
-        });
+        this.setResolveAbleOn(
+          { target: ev.target, strategyType: 'onClick', resolveAble: false },
+          { composedPath },
+        );
       }, 50);
     });
   }
@@ -244,9 +254,11 @@ export class HydrationLoader {
       if (!ev.target) {
         return;
       }
+      // composedPath() only returns the full path during dispatch, so capture it now
+      const composedPath = ev.composedPath();
       this.setResolveAbleOn(
         { target: ev.target, strategyType: 'onFocus', resolveAble: true },
-        { composedPath: ev.composedPath(), event: ev },
+        { composedPath, event: ev },
       );
 
       // reset the onFocus resolveAble if the focus did not resulted in the hydration of the element
@@ -254,12 +266,32 @@ export class HydrationLoader {
         if (!ev.target) {
           return;
         }
-        this.setResolveAbleOn({
-          target: ev.target,
-          strategyType: 'onFocus',
-          resolveAble: false,
-        });
+        this.setResolveAbleOn(
+          { target: ev.target, strategyType: 'onFocus', resolveAble: false },
+          { composedPath },
+        );
       }, 50);
+    });
+  }
+
+  async handleOnHover() {
+    document.body.addEventListener('pointerover', ev => {
+      if (!ev.target) {
+        return;
+      }
+      this.setResolveAbleOn(
+        { target: ev.target, strategyType: 'onHover', resolveAble: true },
+        { composedPath: ev.composedPath() },
+      );
+    });
+    document.body.addEventListener('pointerout', ev => {
+      if (!ev.target) {
+        return;
+      }
+      this.setResolveAbleOn(
+        { target: ev.target, strategyType: 'onHover', resolveAble: false },
+        { composedPath: ev.composedPath() },
+      );
     });
   }
 

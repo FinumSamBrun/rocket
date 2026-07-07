@@ -90,10 +90,7 @@ export async function mdToJsSingleDemo(md, demo) {
 
   const code = /** @type {{client: string; server: string}} */ (result.data.code);
 
-  let litImport = "import { html } from 'lit'";
-  if (/import\s*?{(?:\n|.)*?html(\n|.)*}.*/m.test(code.server)) {
-    litImport = '';
-  }
+  const litImport = hasTopLevelHtmlBinding(code.server) ? '' : "import { html } from 'lit'";
   const moduleCode = `
 import {render} from '@lit-labs/ssr';
 ${litImport}
@@ -119,11 +116,10 @@ export function contentFn(data, layout) {
  * @returns {Promise<string>}
  */
 async function makeJsFile(serverCode, clientCode, markdown, headlines) {
-  let litImport = "import { html } from 'lit'";
   const normalizedServerCode = normalizeLayoutExportBindings(serverCode);
-  if (/import\s*?{(?:\n|.)*?html(\n|.)*}.*/m.test(normalizedServerCode)) {
-    litImport = '';
-  }
+  const litImport = hasTopLevelHtmlBinding(normalizedServerCode)
+    ? ''
+    : "import { html } from 'lit'";
   return `
 import {render} from '@lit-labs/ssr';
 ${litImport}
@@ -143,6 +139,56 @@ export function contentFn(data, defaultLayout) {
   const layoutResult = renderLayout(data);
   return render(layoutResult);
 }`;
+}
+
+/**
+ * The generated Markdown module wraps the page content in a lit `html` template, so it must inject
+ * `import { html } from 'lit'` unless the Page's server code already provides a top-level `html`
+ * binding (an import binding or a top-level declaration).
+ *
+ * @param {string} code
+ * @returns {boolean}
+ */
+function hasTopLevelHtmlBinding(code) {
+  if (typeof code !== 'string' || code === '') {
+    return false;
+  }
+  const sourceFile = ts.createSourceFile(
+    'page-server.js',
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && statement.importClause) {
+      const { name, namedBindings } = statement.importClause;
+      if (name?.text === 'html') {
+        return true;
+      }
+      if (namedBindings) {
+        if (ts.isNamespaceImport(namedBindings)) {
+          if (namedBindings.name.text === 'html') {
+            return true;
+          }
+        } else if (namedBindings.elements.some(element => element.name.text === 'html')) {
+          return true;
+        }
+      }
+    } else if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === 'html') {
+          return true;
+        }
+      }
+    } else if (
+      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+      statement.name?.text === 'html'
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -242,8 +288,7 @@ function parseDemos() {
       codePreview.visited = true;
       codePreview.meta = demoCodeBlockMeta(node.meta);
       const code = node.value;
-      const parsed = parseExports(code);
-      const name = parsed[1][0].ln || parsed[1][0].n;
+      const name = demoExportName(code);
       // we transform a code node into a root node, so cast
       const rootNode = /** @type {import('mdast').Root} */ (/** @type {unknown} */ (node));
       rootNode.type = 'root';
@@ -357,8 +402,24 @@ function isRequestDemoCodeNode(node) {
 /**
  * @param {import('mdast').Code} node
  */
-function isDemoCodeNode(node) {
+export function isDemoCodeNode(node) {
   return node.lang === 'js' && /(?:^|\s)demo(?:\s|$)/.test(node.meta || '');
+}
+
+/**
+ * @param {string} code
+ * @returns {string}
+ */
+function demoExportName(code) {
+  const [, moduleExports] = parseExports(code);
+  const name = moduleExports[0] && (moduleExports[0].ln || moduleExports[0].n);
+  if (!name) {
+    throw new Error(
+      'A ```js demo code block must export the demo function, ' +
+        'e.g. "export const myDemo = () => html`...`".',
+    );
+  }
+  return name;
 }
 
 /**
@@ -400,8 +461,7 @@ function extractSingleDemo(demoName) {
       codePreview.visited = true;
       codePreview.meta = demoCodeBlockMeta(node.meta);
       const code = node.value;
-      const parsed = parseExports(code);
-      const name = parsed[1][0].ln || parsed[1][0].n;
+      const name = demoExportName(code);
       if (name !== demoName) {
         return;
       }
@@ -596,17 +656,24 @@ function readStringProperty(value) {
  */
 function escapeOutsideTemplates(string) {
   let result = '';
-  let templateLevels = 0;
+  let braceDepth = 0;
   for (let i = 0; i < string.length; i++) {
-    if (string[i] === '$' && string[i + 1] === '{' && string[i - 1] !== '\\') {
-      templateLevels++;
-    } else if (templateLevels && string[i] === '}') {
-      templateLevels--;
-    }
-    if (templateLevels) {
-      result += string[i];
-    } else {
+    if (braceDepth === 0) {
+      if (string[i] === '$' && string[i + 1] === '{' && string[i - 1] !== '\\') {
+        braceDepth = 1;
+        result += '${';
+        i++;
+        continue;
+      }
       result += string[i].replace('\\', '\\\\').replace('`', '\\`');
+    } else {
+      // Track nested braces so expressions like `${ fn({ a: 1 }) }` stay intact.
+      if (string[i] === '{') {
+        braceDepth++;
+      } else if (string[i] === '}') {
+        braceDepth--;
+      }
+      result += string[i];
     }
   }
 

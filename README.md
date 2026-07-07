@@ -77,8 +77,9 @@ npx rocket init
 ```
 
 `rocket init` creates a compact Atlas docs starter, including `rocket-config.js`,
-`docs/pages/sharedData.js`, starter Markdown Pages, a static JSON Page for a Request Demo, and a
-removable project-local Rocket Agent Skill. It also adds npm scripts when the names are available:
+`docs/pages/sharedData.js`, a project theme stylesheet at `public/rocket-theme.css`, starter
+Markdown Pages, a static JSON Page for a Request Demo, and a removable project-local Rocket Agent
+Skill. It also adds npm scripts when the names are available:
 
 ```json
 {
@@ -129,6 +130,11 @@ export const layout = pageData => atlasHeroLayout(pageData, heroData);
 # Rocket Site
 
 This starter is rendered with Rocket's Atlas hero layout.
+
+## Next steps
+
+- Edit this Page in `docs/pages/index.rocket.md`.
+- Edit the shared Atlas data in `docs/pages/sharedData.js`.
 ````
 
 Then run:

@@ -1,4 +1,4 @@
-import { URLPattern } from 'urlpattern-polyfill';
+import { routePattern } from './route-pattern.js';
 import { PageData } from './PageData.js';
 import { normalizeDocumentPath } from './standalone-demo-url.js';
 
@@ -229,7 +229,7 @@ function parsePaginatedArchivePath(pathname) {
  * @param {string} routePath
  */
 function matchPagePath(pathname, origin, routePath) {
-  const pattern = new URLPattern({ pathname: routePath });
+  const pattern = routePattern(routePath);
   return pattern.exec(pathname, origin);
 }
 

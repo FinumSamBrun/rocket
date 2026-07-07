@@ -58,6 +58,10 @@ The starter uses Atlas layouts, exports the matching Atlas component maps, inclu
 icons through `menu.iconName`, wires a central project theme stylesheet, and includes both
 JavaScript Demo and Request Demo examples.
 
+In a project that already contains three or more Rocket Pages, the initializer treats the project
+as an existing Rocket site: it skips all starter Pages and only adds `rocket-config.js` and the
+Rocket Agent Skill when those are missing.
+
 It also updates `package.json` when possible:
 
 - adds `"type": "module"` when `type` is missing

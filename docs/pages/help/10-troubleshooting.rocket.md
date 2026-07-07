@@ -50,7 +50,13 @@ export default {
 };
 ```
 
-If port `8888` is already in use, change it with `adjustDevServerConfig`:
+If port `8888` is already in use, pass another port for the current run:
+
+```bash
+npx rocket start --port 3000
+```
+
+To change it permanently, use `adjustDevServerConfig`:
 
 ```js label="rocket-config.js"
 export default {

@@ -3,6 +3,11 @@
 
 /**
  * Turns a MessagePort into an AsyncPort, which can wait for responses.
+ *
+ * Do not use sendAndWait from inside module customization hooks: the main
+ * thread may be blocked in Atomics.wait (e.g. during a nested
+ * module.register() call) and unable to reply, which deadlocks the hook.
+ *
  * @param {MessagePort} port
  * @returns {AsyncPort}
  */
@@ -13,9 +18,10 @@ export function makeAsyncPort(port) {
     p._wait.resolve(message);
     p._wait = Promise.withResolvers();
   });
-  p.sendAndWait = async message => {
+  p.sendAndWait = message => {
+    const wait = p._wait;
     p.postMessage(message);
-    return p._wait;
+    return wait.promise;
   };
   return p;
 }

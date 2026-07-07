@@ -1,8 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { readConfig } from '../config.js';
 import { RocketBuild } from './RocketBuild.js';
 import { RocketInit } from './RocketInit.js';
 import { RocketStart } from './RocketStart.js';
+
+const packageJson = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+);
 
 export class RocketCli {
   /** @type {string[]} */
@@ -21,7 +26,12 @@ export class RocketCli {
     this.argv = argv;
 
     this.program = new Command();
-    this.program.allowUnknownOption(true).option('-c, --config-file <path>', 'path to config file');
+    this.program
+      .name('rocket')
+      .description('HTML-first static-site metaframework for content sites and Web Component docs')
+      .version(packageJson.version)
+      .allowUnknownOption(true)
+      .option('-c, --config-file <path>', 'path to config file');
     this.program.parseOptions(this.argv);
 
     this.program.allowUnknownOption(false);

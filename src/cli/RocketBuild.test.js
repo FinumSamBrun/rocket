@@ -2000,7 +2000,7 @@ export default function homePage() {
     try {
       await assert.rejects(
         () => build.build(),
-        /Invalid build output directory .*Rocket can only clear an existing output directory inside the project root/,
+        /Invalid build output directory .*Rocket only writes build output inside the project root/,
       );
       assert.equal(readFileSync('docs/keep.txt', 'utf8'), 'keep');
     } finally {
