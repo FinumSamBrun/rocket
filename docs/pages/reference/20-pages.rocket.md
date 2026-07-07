@@ -338,8 +338,9 @@ JavaScript Pages can return:
 - `null` or `undefined`, normalized as an empty response
 
 Concrete JavaScript Pages can be emitted during the static build. Parameterized JavaScript Pages
-and JavaScript Pages that depend on request-time data need `render: 'server'` and a configured
-adapter for production builds.
+either export static params to enumerate their output documents, or need `render: 'server'` and a
+configured adapter for production builds. JavaScript Pages that depend on request-time data always
+need `render: 'server'`.
 
 For static non-HTML output, use a file extension in `config.path`. A Page at
 `/api/docs-index.json` builds to `dist/api/docs-index.json`. Extensionless paths are treated as
@@ -379,6 +380,49 @@ When Site Head Metadata and static Social Preview Images are enabled, each gener
 uses its concrete URL for canonical and social metadata and receives its own Default Social Preview
 Image. Standalone Demo URLs stay excluded from Default Social Preview Images by default because they
 are focused demo documents rather than separate Page identities.
+
+## Page Feeds
+
+A static JavaScript Page can export `feed` to turn a Page Collection into an Atom feed:
+
+```js label="src/pages/blog.rocket.js"
+export const feed = pageData => ({
+  title: 'Example Blog',
+  description: 'Latest posts from the project.',
+  collection: pageData.pages.query({ tags: 'blog', sortBy: 'date', sortDirection: 'desc' }),
+  limit: 20,
+});
+```
+
+The feed is served at `<page path>/feed.xml` — `/blog/feed.xml` for a Page at `/blog` — in
+development and written as a static build output. Entries take titles, links, dates, summaries,
+and authors from the collection's normalized Page Metadata; `limit` caps the entry count.
+
+A Page Feed is generated output, not a configured Page. It needs a concrete owning Page path and
+a configured Site Origin for static builds; a configured Page at the same path as a Page Feed
+fails the build.
+
+## Static params for parameterized Pages
+
+A parameterized static JavaScript Page can export `staticParams` to enumerate one output document
+per param set during static builds:
+
+```js label="src/pages/blog-tags.rocket.js"
+export const config = {
+  path: '/blog/tags/:tag',
+  metadata: { title: 'Blog tag archive' },
+  menu: false,
+};
+
+export const staticParams = pageData => [{ tag: 'releases' }, { tag: 'atlas' }];
+```
+
+Every route param in the Page path must appear in each params object, and values must already be
+URL-safe path segments. The enumerated concrete paths are rendered like ordinary Pages — the
+default export receives the substituted `params` — and they join Sitemap and Robots File output
+when Site Discoverability is enabled. Parameterized Pages without `staticParams` stay excluded
+from static builds and the Sitemap. Static params cannot be combined with `pagination` on the
+same Page.
 
 ## Title and link text
 

@@ -20,6 +20,7 @@ export const globalData = {
     navLinks: [
       { text: 'Docs', href: '/setup/manual-quick-start' },
       { text: 'Examples', href: '/examples' },
+      { text: 'Blog', href: '/blog/' },
     ],
   },
 

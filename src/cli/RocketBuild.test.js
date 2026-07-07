@@ -2568,7 +2568,261 @@ export default function homePage() {
       rmSync(projectRoot, { recursive: true, force: true });
     }
   });
+
+  it('40: emits Page Feed output for archive Pages with a feed export', async () => {
+    const projectRoot = mkdtempSync(path.join(tmpdir(), 'rocket-feed-build-'));
+    const originalCwd = process.cwd();
+    const blog = makeFeedPage();
+    const post = makePage({
+      path: '/posts/launch',
+      file: 'docs/posts/launch.rocket.md',
+      metadata: {
+        title: 'Launch',
+        description: 'The launch post.',
+        date: '2026-05-20',
+        tags: ['post'],
+        authors: ['Ada Lovelace'],
+      },
+    });
+    const pages = makePageRegistry(blog, post);
+    const staticPages = new Map([[blog.module.config.path, blog]]);
+
+    process.chdir(projectRoot);
+    try {
+      await renderStaticPages({
+        pages,
+        staticPages,
+        siteOrigin: 'https://rocket.example',
+        pageModuleLoader: {
+          async load() {
+            return {
+              kind: 'javascript',
+              body: () => '<main>Blog</main>',
+            };
+          },
+        },
+      });
+
+      const feed = readFileSync('tmp-dist-rocket/blog/feed.xml', 'utf8');
+      assert.match(feed, /<feed xmlns="http:\/\/www\.w3\.org\/2005\/Atom">/);
+      assert.match(feed, /<title>Rocket Blog<\/title>/);
+      assert.match(
+        feed,
+        /<link rel="self" type="application\/atom\+xml" href="https:\/\/rocket\.example\/blog\/feed\.xml"\/>/,
+      );
+      assert.match(feed, /<id>https:\/\/rocket\.example\/posts\/launch\/<\/id>/);
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('41: fails Page Feed builds without a Site Origin', async () => {
+    const blog = makeFeedPage();
+    const pages = makePageRegistry(blog);
+
+    await assert.rejects(
+      renderStaticPages({
+        pages,
+        staticPages: new Map([[blog.module.config.path, blog]]),
+        pageModuleLoader: {
+          async load() {
+            return { kind: 'javascript', body: () => '<main>Blog</main>' };
+          },
+        },
+      }),
+      /Page Feed \/blog\/feed\.xml for docs\/blog\.rocket\.js requires a Site Origin/,
+    );
+  });
+
+  it('42: fails when a Page Feed collides with a configured Page path', async () => {
+    const blog = makeFeedPage();
+    const collision = makePage({
+      path: '/blog/feed.xml',
+      file: 'docs/blog-feed.rocket.js',
+      title: 'Hand-authored feed',
+    });
+    const pages = makePageRegistry(blog, collision);
+
+    await assert.rejects(
+      renderStaticPages({
+        pages,
+        staticPages: new Map([[blog.module.config.path, blog]]),
+        siteOrigin: 'https://rocket.example',
+        pageModuleLoader: {
+          async load() {
+            return { kind: 'javascript', body: () => '<main>Blog</main>' };
+          },
+        },
+      }),
+      /Page Feed \/blog\/feed\.xml for docs\/blog\.rocket\.js collides with configured Page docs\/blog-feed\.rocket\.js/,
+    );
+  });
+  it('43: builds static param outputs and includes them in Site Discoverability', async () => {
+    const projectRoot = mkdtempSync(path.join(tmpdir(), 'rocket-static-params-build-'));
+    const originalCwd = process.cwd();
+    mkdirSync(path.join(projectRoot, 'docs/posts'), { recursive: true });
+    writeFileSync(
+      path.join(projectRoot, 'docs/index.rocket.js'),
+      `
+export const config = { path: '/', metadata: { title: 'Home' }, menu: false };
+
+export default function homePage() {
+  return '<main>Home</main>';
+}
+      `,
+    );
+    writeFileSync(
+      path.join(projectRoot, 'docs/blog-tag.rocket.js'),
+      `
+export const config = { path: '/blog/tags/:tag', metadata: { title: 'Tag Archive' }, menu: false };
+
+export const staticParams = pageData => {
+  const tags = new Set(
+    pageData.pages
+      .query({ tags: 'post', pathPrefix: '/posts/' })
+      .flatMap(entry => (entry.metadata.tags || []).filter(tag => tag !== 'post')),
+  );
+  return [...tags].sort().map(tag => ({ tag }));
+};
+
+export default function tagArchive(_request, { params, pageData }) {
+  const posts = pageData.pages.query({
+    tags: ['post', params.tag],
+    pathPrefix: '/posts/',
+    sortBy: 'date',
+    sortDirection: 'desc',
+  });
+  return '<main data-tag="' + params.tag + '">' + posts.map(post => post.metadata.title).join(',') + '</main>';
+}
+      `,
+    );
+    for (const post of [
+      { slug: 'oldest', title: 'Oldest Post', date: '2026-05-05', tag: 'launch' },
+      { slug: 'newest', title: 'Newest Post', date: '2026-05-25', tag: 'components' },
+    ]) {
+      writeFileSync(
+        path.join(projectRoot, `docs/posts/${post.slug}.rocket.js`),
+        `
+export const config = {
+  path: '/posts/${post.slug}',
+  metadata: { title: '${post.title}', date: '${post.date}', tags: ['post', '${post.tag}'] },
+  menu: false,
+};
+
+export default function postPage() {
+  return '<main>${post.title}</main>';
+}
+        `,
+      );
+    }
+    /** @type {any} */
+    const build = new RocketBuild();
+    build.cli = {
+      config: {
+        includeGlobs: ['docs/**/*.rocket.js'],
+        excludeRegex: [],
+        siteOrigin: 'https://docs.rocket.test',
+        siteDiscoverability: { sitemap: true },
+        /**
+         * @param {any} config
+         */
+        adjustDevServerConfig(config) {
+          return config;
+        },
+      },
+    };
+
+    process.chdir(projectRoot);
+    try {
+      await build.build();
+
+      assert.match(
+        readFileSync('dist/blog/tags/launch/index.html', 'utf8'),
+        /<main data-tag="launch">Oldest Post<\/main>/,
+      );
+      assert.match(
+        readFileSync('dist/blog/tags/components/index.html', 'utf8'),
+        /<main data-tag="components">Newest Post<\/main>/,
+      );
+      const sitemap = readFileSync('dist/sitemap.xml', 'utf8');
+      assert.deepEqual(readSitemapLocations(sitemap), [
+        'https://docs.rocket.test/',
+        'https://docs.rocket.test/blog/tags/components',
+        'https://docs.rocket.test/blog/tags/launch',
+        'https://docs.rocket.test/posts/newest',
+        'https://docs.rocket.test/posts/oldest',
+      ]);
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('44: fails when a static params output path collides with a configured Page path', async () => {
+    const tagArchive = makePage({
+      path: '/blog/tags/:tag',
+      file: 'docs/blog-tag.rocket.js',
+      title: 'Tag Archive',
+    });
+    tagArchive.module.staticParams = [{ tag: 'launch' }];
+    const collision = makePage({
+      path: '/blog/tags/launch',
+      file: 'docs/launch-tag.rocket.js',
+      title: 'Hand-authored tag Page',
+    });
+    const pages = makePageRegistry(tagArchive, collision);
+
+    await assert.rejects(
+      renderStaticPages({
+        pages,
+        staticPages: new Map([[tagArchive.module.config.path, tagArchive]]),
+        pageModuleLoader: {
+          async load() {
+            return { kind: 'javascript', body: () => '<main>tag</main>' };
+          },
+        },
+      }),
+      /Static params output path \/blog\/tags\/launch for page docs\/blog-tag\.rocket\.js collides with configured Page docs\/launch-tag\.rocket\.js/,
+    );
+  });
+
+  it('45: fails when a static params Page also declares pagination', async () => {
+    const tagArchive = makePage({
+      path: '/blog/tags/:tag',
+      file: 'docs/blog-tag.rocket.js',
+      title: 'Tag Archive',
+    });
+    tagArchive.module.staticParams = [{ tag: 'launch' }];
+    tagArchive.module.pagination = { pageSize: 10, collection: [] };
+    const pages = makePageRegistry(tagArchive);
+
+    await assert.rejects(
+      renderStaticPages({
+        pages,
+        staticPages: new Map([[tagArchive.module.config.path, tagArchive]]),
+        pageModuleLoader: {
+          async load() {
+            return { kind: 'javascript', body: () => '<main>tag</main>' };
+          },
+        },
+      }),
+      /cannot combine static params with pagination/,
+    );
+  });
 });
+
+/**
+ * @returns {import('@rocket/js/types.js').Page}
+ */
+function makeFeedPage() {
+  const blog = makePage({ path: '/blog', file: 'docs/blog.rocket.js', title: 'Blog' });
+  blog.module.feed = pageData => ({
+    title: 'Rocket Blog',
+    collection: pageData.pages.query({ tags: 'post', sortBy: 'date', sortDirection: 'desc' }),
+  });
+  return blog;
+}
 
 /**
  * @param {{ path?: string; file?: string; title?: string; metadata?: import('@rocket/js/types.js').PageMetadata; config?: Omit<import('@rocket/js/types.js').PageConfig, 'path' | 'metadata' | 'render'>; renderMode?: 'static' | 'server'; demoNames?: string[] }} [options]

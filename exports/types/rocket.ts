@@ -322,6 +322,8 @@ export type JsPage = (
 export type Module = {
   config: PageConfig;
   pagination?: PagePaginationDeclaration;
+  feed?: PageFeedDeclaration;
+  staticParams?: PageStaticParamsDeclaration;
   components?: Components;
   _$title$?: string;
   _$menuLinkText$?: string;
@@ -410,6 +412,37 @@ export type PagePagination = {
   nextPath?: string;
   previousPath?: string;
 };
+
+export type PageFeedConfig = {
+  /**
+   * Feed display title.
+   */
+  title: string;
+  /**
+   * Optional feed subtitle text.
+   */
+  description?: string;
+  /**
+   * Page Collection entries included as feed entries, in collection order.
+   */
+  collection: PageCollectionEntry[];
+  /**
+   * Optional maximum number of feed entries taken from the start of the collection.
+   */
+  limit?: number;
+};
+
+export type PageFeedDeclaration = PageFeedConfig | ((pageData: PageData) => PageFeedConfig);
+
+/**
+ * Concrete param values for one generated output document of a parameterized static
+ * JavaScript Page. Every route param in the Page path must be present.
+ */
+export type PageStaticParams = Record<string, string>;
+
+export type PageStaticParamsDeclaration =
+  | PageStaticParams[]
+  | ((pageData: PageData) => PageStaticParams[]);
 
 export type PageRegistrySortDirection = 'asc' | 'desc';
 
@@ -582,6 +615,24 @@ export type HeroData = {
   quickStartData?: QuickStartData;
   workflowData?: WorkflowData;
   secondaryLinksData?: FooterLink[];
+};
+
+export type BlogData = {
+  headerData: HeaderData;
+  /**
+   * Project-owned stylesheet URLs loaded after the package Atlas layout stylesheets.
+   */
+  stylesheets?: string[];
+  /**
+   * Site-root path prefix for tag archive links, e.g. '/blog/tags/'. Tags render as
+   * plain text when omitted.
+   */
+  tagPathPrefix?: string;
+  /**
+   * Site-root path of the blog's Page Feed, e.g. '/blog/feed.xml'. Adds a feed
+   * alternate link to the document head and a visible feed link on the index.
+   */
+  feedPath?: string;
 };
 
 export type AtlasDocAsideTip = {

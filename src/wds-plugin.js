@@ -7,6 +7,7 @@ import { debounce } from './debounce.js';
 import path from 'node:path';
 import { createIconAssetStore, rocketIconRuntimeOutputs } from './icons.js';
 import { createPageModuleLoader } from './page-module-loader.js';
+import { matchPageFeedPath } from './feeds.js';
 import { PageRuntime, PageRuntimeError } from './page-runtime.js';
 import {
   PUBLIC_ASSETS_DIR,
@@ -157,6 +158,10 @@ export default (include, exclude, resolverPort, options = {}) => {
         }
       } else if (context.header.accept === '*/*') {
         isPage = false;
+      }
+      // Feed readers fetch Page Feeds without document Accept headers.
+      if (!isPage && matchPageFeedPath(context.path, pageRegistry)) {
+        isPage = true;
       }
       if (!isPage) {
         const pathname = new URLPattern().exec(context.header.referer)?.pathname.input;

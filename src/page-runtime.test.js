@@ -1507,6 +1507,117 @@ describe('Test PageRuntime', () => {
     ]);
     assert.match(body, /data-rocket-icon-runtime/);
   });
+
+  it('29: serves Page Feeds for archive Pages with a feed export', async () => {
+    const blogIndex = makePage({
+      path: '/blog',
+      file: 'docs/pages/blog.rocket.js',
+      title: 'Blog',
+    });
+    blogIndex.module.feed = pageData => ({
+      title: 'Rocket Blog',
+      collection: pageData.pages.query({
+        tags: 'post',
+        pathPrefix: '/posts/',
+        sortBy: 'date',
+        sortDirection: 'desc',
+      }),
+    });
+    const post = makePage({
+      path: '/posts/launch',
+      file: 'docs/pages/posts/launch.rocket.md',
+      metadata: {
+        title: 'Launch',
+        date: '2026-05-20',
+        tags: ['post'],
+        authors: ['Ada Lovelace'],
+      },
+    });
+    const pages = makePageRegistry(blogIndex, post);
+    const runtime = new PageRuntime({
+      pages,
+      pageModuleLoader: {
+        async load() {
+          throw new Error('Page Feeds must not load the owning Page module');
+        },
+      },
+      siteOrigin: 'https://rocket.example',
+    });
+
+    const response = await runtime.render(new Request('https://rocket.test/blog/feed.xml'));
+    const body = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'application/atom+xml; charset=utf-8');
+    assert.match(body, /<title>Rocket Blog<\/title>/);
+    assert.match(body, /<id>https:\/\/rocket\.example\/posts\/launch\/<\/id>/);
+
+    const fallbackRuntime = new PageRuntime({
+      pages,
+      pageModuleLoader: {
+        async load() {
+          throw new Error('Page Feeds must not load the owning Page module');
+        },
+      },
+    });
+    const fallbackBody = await (
+      await fallbackRuntime.render(new Request('https://rocket.test/blog/feed.xml'))
+    ).text();
+    assert.match(fallbackBody, /<id>https:\/\/rocket\.test\/posts\/launch\/<\/id>/);
+  });
+
+  it('30: renders a configured Page instead of a Page Feed at the same path', async () => {
+    const blogIndex = makePage({
+      path: '/blog',
+      file: 'docs/pages/blog.rocket.js',
+      title: 'Blog',
+    });
+    blogIndex.module.feed = { title: 'Rocket Blog', collection: [] };
+    const configuredFeedPage = makePage({
+      path: '/blog/feed.xml',
+      file: 'docs/pages/blog/feed.rocket.js',
+      title: 'Hand-authored feed',
+    });
+    const runtime = new PageRuntime({
+      pages: makePageRegistry(blogIndex, configuredFeedPage),
+      pageModuleLoader: {
+        async load() {
+          return {
+            kind: 'javascript',
+            body: () => new Response('hand-authored'),
+          };
+        },
+      },
+      siteOrigin: 'https://rocket.example',
+    });
+
+    const response = await runtime.render(new Request('https://rocket.test/blog/feed.xml'));
+
+    assert.equal(await response.text(), 'hand-authored');
+  });
+
+  it('31: throws typed Page Runtime errors for invalid Page Feed declarations', async () => {
+    const blogIndex = makePage({
+      path: '/blog',
+      file: 'docs/pages/blog.rocket.js',
+      title: 'Blog',
+    });
+    blogIndex.module.feed = /** @type {any} */ ({ collection: [] });
+    const runtime = new PageRuntime({
+      pages: makePageRegistry(blogIndex),
+      pageModuleLoader: {
+        async load() {
+          throw new Error('Page Feeds must not load the owning Page module');
+        },
+      },
+      siteOrigin: 'https://rocket.example',
+    });
+
+    await assert.rejects(runtime.render(new Request('https://rocket.test/blog/feed.xml')), {
+      name: 'PageRuntimeError',
+      code: 'PAGE_RENDER_FAILED',
+    });
+  });
 });
 
 /**

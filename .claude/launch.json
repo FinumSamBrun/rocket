@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rocket-docs",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["rocket", "start"],
+      "port": 8000
+    },
+    {
+      "name": "rocket-dist",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "dist", "-p", "8917", "-c-1"],
+      "port": 8917
+    }
+  ]
+}

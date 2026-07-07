@@ -16,6 +16,7 @@
       "types": "./dist-types/exports/*",
       "default": "./exports/*"
     },
+    "./layouts/atlasBlog.css": "./src/layouts/atlas/atlasBlog.css",
     "./layouts/atlasDoc.css": "./src/layouts/atlas/atlasDoc.css",
     "./layouts/atlasHero.css": "./src/layouts/atlas/atlasHero.css",
     "./layouts/atlasNotFound.css": "./src/layouts/atlas/atlasNotFound.css",

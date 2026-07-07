@@ -5,6 +5,7 @@ import {
   paginatedArchivePath,
   paginatedArchivePaths,
 } from './page-pagination.js';
+import { hasStaticParams, staticParamsPagePaths } from './static-params.js';
 
 /**
  * @param {{
@@ -86,7 +87,12 @@ export function createRobotsFile({ pages = new Map(), siteOrigin }) {
 function sitemapPageLocations({ pages, siteOrigin }) {
   return Array.from(pages.entries())
     .filter(([pagePath, page]) => {
-      return !hasPathParameter(pagePath) && page.module.config.discoverability?.sitemap !== false;
+      // Parameterized Pages join the Sitemap only when static params enumerate
+      // their public URLs.
+      return (
+        (!hasPathParameter(pagePath) || hasStaticParams(page)) &&
+        page.module.config.discoverability?.sitemap !== false
+      );
     })
     .flatMap(([pagePath, page]) => discoverabilityPagePaths({ pages, pagePath, page }))
     .map(pagePath => absolutePageUrl(siteOrigin, pagePath))
@@ -112,6 +118,9 @@ function robotsDisallowPaths({ pages }) {
  * }} options
  */
 function discoverabilityPagePaths({ pages, pagePath, page }) {
+  if (hasStaticParams(page)) {
+    return staticParamsPagePaths({ pages, page, pagePath });
+  }
   if (!hasPagePagination(page)) {
     return [pagePath];
   }

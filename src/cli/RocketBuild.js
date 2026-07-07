@@ -6,7 +6,9 @@ import { build } from 'vite';
 import path from 'node:path';
 import { PageRuntime } from '../page-runtime.js';
 import { createIconAssetStore, rocketIconRuntimeOutputs } from '../icons.js';
-import { paginatedArchivePaths } from '../page-pagination.js';
+import { hasPagePagination, paginatedArchivePaths } from '../page-pagination.js';
+import { hasPageFeed, pageFeedPath } from '../feeds.js';
+import { hasStaticParams, staticParamsPagePaths } from '../static-params.js';
 import { createPageModuleLoader } from '../page-module-loader.js';
 import { writeSiteDiscoverabilityOutputs } from '../siteDiscoverability.js';
 import { normalizeDocumentPath, standaloneDemoPaths } from '../standalone-demo-url.js';
@@ -235,6 +237,8 @@ export async function renderStaticPages({
   assertStaticJavaScriptPagesHaveConcretePaths(staticPages);
   assertNoStandaloneDemoPathCollisions(pages, staticPages);
   assertNoPaginatedArchivePathCollisions(pages, staticPages);
+  assertPageFeedsAreBuildable({ pages, staticPages, siteOrigin });
+  assertNoStaticParamsPathCollisions(pages, staticPages);
   validateUrlLifecycleGeneratedOutputCollisions({
     redirects: urlLifecycle?.redirects,
     pages,
@@ -268,6 +272,13 @@ export async function renderStaticPages({
   });
   for (const [pagePath, page] of staticPages) {
     try {
+      if (hasStaticParams(page)) {
+        for (const paramPath of staticParamsPagePaths({ pages, page, pagePath })) {
+          const paramResponse = await pageRuntime.render(new Request(new URL(paramPath, origin)));
+          await writeStaticResponse(paramPath, paramResponse);
+        }
+        continue;
+      }
       const response = await pageRuntime.render(new Request(new URL(pagePath, origin)));
       await writeStaticResponse(pagePath, response);
       for (const archivePath of paginatedArchivePaths({ pages, page, pagePath })) {
@@ -277,6 +288,11 @@ export async function renderStaticPages({
       for (const demoPath of standaloneDemoPaths(pagePath, page)) {
         const demoResponse = await pageRuntime.render(new Request(new URL(demoPath, origin)));
         await writeStandaloneDemoResponse(demoPath, page, demoResponse);
+      }
+      if (hasPageFeed(page)) {
+        const feedPath = pageFeedPath(pagePath);
+        const feedResponse = await pageRuntime.render(new Request(new URL(feedPath, origin)));
+        await writeStaticResponse(feedPath, feedResponse);
       }
     } catch (error) {
       throw new Error(`Failed to render page: ${pagePath}. ${errorMessage(error)}`, {
@@ -296,15 +312,52 @@ export async function renderStaticPages({
  */
 function assertStaticJavaScriptPagesHaveConcretePaths(staticPages) {
   for (const [pagePath, page] of staticPages) {
-    if (!page.file.endsWith('.js') || !hasPathParameter(pagePath)) {
+    if (!page.file.endsWith('.js') || !hasPathParameter(pagePath) || hasStaticParams(page)) {
       continue;
     }
     throw new Error(
       `Static JavaScript Page ${pagePath} (${page.file}) cannot be rendered as one static ` +
-        `output document because its path is parameterized. Parameterized JavaScript Pages need ` +
-        `request-time rendering until Rocket has an API for enumerating static params. Use ` +
-        `render: 'server' for this Page today.`,
+        `output document because its path is parameterized. Export static params to enumerate ` +
+        `its output documents, or use render: 'server' for request-time rendering.`,
     );
+  }
+}
+
+/**
+ * @param {import('@rocket/js/types.js').PageRegistry} pages
+ * @param {import('@rocket/js/types.js').PageRegistry} staticPages
+ */
+function assertNoStaticParamsPathCollisions(pages, staticPages) {
+  const configuredPages = configuredPageOutputPaths(pages);
+  const staticParamsPages = new Map();
+  for (const [pagePath, page] of staticPages) {
+    if (!hasStaticParams(page)) {
+      continue;
+    }
+    if (hasPagePagination(page)) {
+      throw new Error(
+        `Static JavaScript Page ${pagePath} (${page.file}) cannot combine static params with ` +
+          `pagination. Paginate a concrete archive Page instead.`,
+      );
+    }
+    for (const paramPath of staticParamsPagePaths({ pages, page, pagePath })) {
+      const outputPath = normalizeDocumentPath(paramPath);
+      const collision = configuredPages.get(outputPath);
+      if (collision) {
+        throw new Error(
+          `Static params output path ${paramPath} for page ${page.file} collides with ` +
+            `configured Page ${collision.page.file} at ${collision.path}`,
+        );
+      }
+      const paramCollision = staticParamsPages.get(outputPath);
+      if (paramCollision) {
+        throw new Error(
+          `Static params output path ${paramPath} for page ${page.file} collides with ` +
+            `static params output path ${paramCollision.path} for page ${paramCollision.page.file}`,
+        );
+      }
+      staticParamsPages.set(outputPath, { path: paramPath, page });
+    }
   }
 }
 
@@ -313,6 +366,40 @@ function assertStaticJavaScriptPagesHaveConcretePaths(staticPages) {
  */
 function hasPathParameter(pagePath) {
   return /(^|\/):[^/]+/.test(pagePath);
+}
+
+/**
+ * @param {{
+ *   pages: import('@rocket/js/types.js').PageRegistry;
+ *   staticPages: import('@rocket/js/types.js').PageRegistry;
+ *   siteOrigin?: string;
+ * }} options
+ */
+function assertPageFeedsAreBuildable({ pages, staticPages, siteOrigin }) {
+  for (const [pagePath, page] of staticPages) {
+    if (!hasPageFeed(page)) {
+      continue;
+    }
+    if (hasPathParameter(pagePath)) {
+      throw new Error(
+        `Page Feed for ${page.file} cannot use the parameterized path ${pagePath}. ` +
+          `Page Feeds need a concrete owning Page path.`,
+      );
+    }
+    if (typeof siteOrigin !== 'string' || siteOrigin.trim() === '') {
+      throw new Error(
+        `Page Feed ${pageFeedPath(pagePath)} for ${page.file} requires a Site Origin for ` +
+          `absolute feed URLs. Add siteOrigin: 'https://example.com' to rocket-config.js.`,
+      );
+    }
+    const collision = pages.get(pageFeedPath(pagePath));
+    if (collision) {
+      throw new Error(
+        `Page Feed ${pageFeedPath(pagePath)} for ${page.file} collides with configured ` +
+          `Page ${collision.file}`,
+      );
+    }
+  }
 }
 
 /**

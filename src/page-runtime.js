@@ -4,6 +4,7 @@ import { layout, singleDemoLayout } from './layouts/layout.js';
 import { PageData } from './PageData.js';
 import { finalizeRocketIcons } from './icons.js';
 import { matchPaginatedArchivePath, pageDataWithPagination } from './page-pagination.js';
+import { createPageFeed, matchPageFeedPath } from './feeds.js';
 import { matchStandaloneDemoUrl } from './standalone-demo-url.js';
 
 /** @typedef {import('@rocket/js/types.js').PageRegistry} PageRegistry */
@@ -86,6 +87,14 @@ export class PageRuntime {
       });
     }
 
+    // A configured Page at the exact request path always wins over a Page Feed.
+    const feedMatch = this.pages.has(url.pathname)
+      ? null
+      : matchPageFeedPath(url.pathname, this.pages);
+    if (feedMatch) {
+      return this.renderPageFeed(feedMatch, url.origin);
+    }
+
     const pageMatch = findPage(url.pathname, url.origin, this.pages);
     if (!pageMatch) {
       return new Response('Page not found', { status: 404 });
@@ -139,6 +148,35 @@ export class PageRuntime {
       `Unsupported Page module kind for ${pageMatch.routePath}`,
       { page: pageMatch.page, routePath: pageMatch.routePath },
     );
+  }
+
+  /**
+   * Development falls back to the request origin so Page Feeds work before a
+   * Site Origin is configured; builds always pass the configured Site Origin.
+   *
+   * @param {{ page: Page; routePath: string }} feedMatch
+   * @param {string} requestOrigin
+   */
+  renderPageFeed(feedMatch, requestOrigin) {
+    /** @type {string} */
+    let feed;
+    try {
+      feed = createPageFeed({
+        pages: this.pages,
+        page: feedMatch.page,
+        pagePath: feedMatch.routePath,
+        siteOrigin: this.siteOrigin || requestOrigin,
+      });
+    } catch (error) {
+      throw new PageRuntimeError(
+        'PAGE_RENDER_FAILED',
+        `Failed to render Page Feed for ${feedMatch.page.file}`,
+        { cause: error, page: feedMatch.page, routePath: feedMatch.routePath },
+      );
+    }
+    return new Response(feed, {
+      headers: { 'content-type': 'application/atom+xml; charset=utf-8' },
+    });
   }
 }
 

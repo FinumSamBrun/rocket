@@ -64,6 +64,14 @@ _Avoid_: Map helper, menu filter, raw registry access
 An ordered author-facing set of content entries used for repeatable content workflows such as blog indexes, tag pages, author pages, and feeds.
 _Avoid_: Blog model, static params list, raw Page map
 
+**Page Feed**:
+The generated Atom feed output that publishes a Page Collection from its owning archive Page.
+_Avoid_: RSS plugin, feed generator, feed Page
+
+**Static Params**:
+The author-facing enumeration of concrete route param values that turns one parameterized static JavaScript Page into static output documents.
+_Avoid_: Dynamic routes, static paths, param list
+
 **Adapter Context**:
 Platform-specific request context passed through a Page Runtime render without being interpreted by Rocket.
 _Avoid_: Runtime context, platform globals
@@ -376,6 +384,20 @@ _Avoid_: Rewrite, alias, Page
 - A **Page Registry Query** reads existing discovered **Pages**; it does not load external files, databases, or CMS content in the first slice.
 - A **Page Collection** may represent blog posts as discovered **Pages** tagged through **Page Metadata** and sorted by `metadata.date`.
 - Pagination is behavior over a **Page Collection**, not a property of an individual **Page**.
+- A **Page Feed** is behavior over a **Page Collection**, declared through the `feed` export of its owning archive **Page**.
+- A **Page Feed** is generated output, not a configured **Page**; it does not join menus, the **Page** registry, or the **Sitemap**.
+- A **Page Feed** derives its public path from the owning **Page** path as a `feed.xml` child document.
+- A **Page Feed** requires a concrete owning **Page** path.
+- A **Page Feed** entry takes its title, link, dates, summary, and authors from normalized **Page Metadata**.
+- A **Page Feed** requires a **Site Origin** for static builds; development may fall back to the request origin.
+- A configured **Page** at a **Page Feed** path wins at request time and fails the static build.
+- A **Page Feed** is not part of **Site Discoverability**.
+- **Static Params** belong to one parameterized static JavaScript **Page** through its `staticParams` export.
+- **Static Params** must cover every route param of the owning **Page** path with URL-safe path segment values.
+- **Static Params** may be enumerated from a **Page Registry Query**.
+- **Static Params** output paths are rendered as ordinary **Page** requests during static builds; development renders parameterized **Pages** at request time regardless.
+- **Static Params** output paths cannot collide with configured **Page** paths or each other.
+- A **Page** cannot combine **Static Params** with pagination.
 - Future file, database, or CMS content sources may become **Adapters** behind the **Page Collection** seam.
 - A **Page Runtime** owns the lifecycle of **PageData** for every **Page** render.
 - The public **Page Runtime** interface exposes render behavior only; Page matching stays inside the implementation.
@@ -613,7 +635,7 @@ _Avoid_: Rewrite, alias, Page
 - A **Redirect** is matched before exact or parameterized **Page** matching.
 - Public concrete static **Pages** are included in the **Sitemap** by default.
 - Public concrete server-rendered **Pages** are included in the **Sitemap** by default.
-- Parameterized **Pages** are excluded from the **Sitemap** until Rocket has a static params Module that can enumerate their public URLs.
+- Parameterized **Pages** are excluded from the **Sitemap** unless **Static Params** enumerate their public URLs.
 - `menu: false` does not exclude a **Page** from **Site Discoverability**.
 - **Standalone Demo URLs** are excluded from the **Sitemap** by default.
 - A **Page Runtime** keeps final invalid-module validation and typed `INVALID_PAGE_MODULE` errors after receiving a **Loaded Page Module**.

@@ -179,6 +179,110 @@ Rocket does not generate `/blog/1/`. The numbered archive Pages are generated va
 owning JavaScript Page, so they do not become separate entries in `pageData.pageRegistry` or the
 menu tree.
 
+## Add a Page Feed
+
+A Page Feed turns the same Page Collection into an Atom feed. Export `feed` from the archive
+Page, next to `pagination`:
+
+```js label="src/pages/blog.rocket.js"
+export const feed = pageData => ({
+  title: 'Example Blog',
+  description: 'Latest posts from the project.',
+  collection: pageData.pages.query({
+    tags: 'blog',
+    pathPrefix: '/posts/',
+    sortBy: 'date',
+    sortDirection: 'desc',
+  }),
+  limit: 20,
+});
+```
+
+Rocket derives the feed path from the owning Page path: with `config.path: '/blog'`, the feed is
+served at `/blog/feed.xml` in development and written to `dist/blog/feed.xml` during a static
+build. Feed entries use the collection order and take their titles, links, dates, summaries, and
+authors from normalized Page Metadata. `limit` caps the entry count from the start of the
+collection.
+
+Feed URLs are absolute, so static builds with a Page Feed require a
+[Site Origin](/reference/configuration). Development falls back to the dev server origin before
+a Site Origin is configured. The Page Feed is generated output, not a configured Page — it does
+not join the menu, the Page Registry, or the Sitemap.
+
+## Add tag archive Pages
+
+Tag archives use one parameterized JavaScript Page for all tags. Export `staticParams` to
+enumerate one output document per tag during static builds:
+
+```js label="src/pages/blog-tags.rocket.js"
+export const config = {
+  path: '/blog/tags/:tag',
+  metadata: {
+    title: 'Blog tag archive',
+  },
+  menu: false,
+};
+
+export const staticParams = pageData => {
+  const tags = new Set(
+    pageData.pages
+      .query({ tags: 'blog', pathPrefix: '/posts/' })
+      .flatMap(post => post.metadata.tags || []),
+  );
+  tags.delete('blog');
+  return [...tags].sort().map(tag => ({ tag }));
+};
+
+export default async (_request, { params, pageData }) => {
+  const posts = pageData.pages.query({
+    tags: ['blog', params.tag],
+    pathPrefix: '/posts/',
+    sortBy: 'date',
+    sortDirection: 'desc',
+  });
+  // render the filtered list...
+};
+```
+
+Every route param in the Page path must appear in each static params object, and param values
+must already be URL-safe path segments — slugify tag names before returning them. In
+development, parameterized Pages render at request time as before; `staticParams` only controls
+static build output and Site Discoverability. Enumerated output paths join the Sitemap, while
+parameterized Pages without `staticParams` stay excluded. Static params cannot be combined with
+`pagination` on the same Page.
+
+## Use the Atlas blog layouts
+
+The Atlas theme ships blog layouts for the archive and the posts. Posts use `atlasPostLayout`,
+which renders a byline with the Page Metadata date, authors, and tag links above the content:
+
+```js label="src/pages/posts/first-launch.rocket.md (js server block)"
+import { atlasPostLayout } from '@rocket/js/layouts/atlasBlog.js';
+export { atlasBlogComponents as components } from '@rocket/js/layouts/atlasBlog.js';
+import { blogData } from './blogData.js';
+
+export const layout = pageData => atlasPostLayout(pageData, blogData);
+```
+
+The archive Page uses `atlasBlogIndexLayout`, which lists `pageData.pagination.items` as post
+cards and renders the pagination navigation:
+
+```js label="src/pages/blog.rocket.js"
+import { ssrRender } from '@rocket/js/ssr.js';
+import { atlasBlogIndexLayout } from '@rocket/js/layouts/atlasBlog.js';
+export { atlasBlogComponents as components } from '@rocket/js/layouts/atlasBlog.js';
+
+export default async (_request, { pageData }) => {
+  pageData.content = html`<h1>Blog</h1>`;
+  return await ssrRender(atlasBlogIndexLayout(pageData, blogData));
+};
+```
+
+Both layouts share a `BlogData` object: `headerData` reuses the site header, `tagPathPrefix`
+(for example `/blog/tags/`) turns tags into archive links, and `feedPath` adds the feed
+alternate link to the document head plus a visible feed link on the index. The
+[Rocket blog](/blog/) is built exactly this way.
+
 ## Sitemap and Robots File behavior
 
 Generated archive Pages participate in Site Discoverability when the project enables those outputs
@@ -205,11 +309,12 @@ hide or disallow the posts.
 
 ## Checkpoint
 
-Run a build and inspect the generated archive paths:
+Run a build and inspect the generated archive paths, the Page Feed, and the tag archives:
 
 ```bash
 npm run build
-ls dist/blog dist/blog/2
+ls dist/blog dist/blog/2 dist/blog/tags
+cat dist/blog/feed.xml
 ```
 
 Use [PageData](/reference/page-data) for the Page Registry Query and pagination reference, and
