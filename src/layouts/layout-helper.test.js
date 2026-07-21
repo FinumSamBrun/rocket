@@ -366,6 +366,111 @@ describe('Test document helper', () => {
     assertStylesheetOrder(heroBody, 'atlasHero.css', '/rocket-theme.css');
     assertStylesheetOrder(notFoundBody, 'atlasNotFound.css', '/rocket-theme.css');
   });
+
+  it('15: appends direct document head content after generated client code', async () => {
+    const pageData = new PageData(makePageRegistry(), { title: 'Custom Layout' }, '/custom');
+    pageData._clientCode = 'window.rocketGenerated = true';
+
+    const body = await ssrRender(
+      document(pageData, html`<main>Custom body</main>`, {
+        menu: false,
+        headContent: html`<meta name="project-extension" content="enabled" />`,
+      }),
+    );
+
+    assertHeadContentOrder(body, 'window.rocketGenerated = true', 'name="project-extension"');
+    assertHeadContentOrder(body, 'name="project-extension"', '</head>');
+  });
+
+  it('16: appends Atlas Layout Head Content for the current documentation Page', async () => {
+    const pageData = makeAtlasPageData();
+    pageData._clientCode = 'window.atlasGenerated = true';
+    let invocationCount = 0;
+    /** @type {PageData | undefined} */
+    let receivedPageData;
+
+    const body = await ssrRender(
+      atlasDocLayout(pageData, {
+        ...makeAtlasSiteData(),
+        stylesheets: ['/rocket-theme.css'],
+        headContent: context => {
+          invocationCount += 1;
+          receivedPageData = context.pageData;
+          return html`<meta name="atlas-extension" content=${context.pageData.url} />`;
+        },
+      }),
+    );
+
+    assert.equal(invocationCount, 1);
+    assert.equal(receivedPageData, pageData);
+    assertHeadContentOrder(body, 'window.atlasGenerated = true', 'atlasDoc.css');
+    assertHeadContentOrder(body, 'atlasDoc.css', '/rocket-theme.css');
+    assertHeadContentOrder(body, '/rocket-theme.css', 'name="atlas-extension"');
+    assertHeadContentOrder(body, 'name="atlas-extension"', '</head>');
+  });
+
+  it('17: appends Atlas Layout Head Content in hero and not-found documents', async () => {
+    const heroBody = await ssrRender(
+      atlasHeroLayout(makeAtlasPageData(), {
+        ...makeAtlasHeroData(),
+        headContent: () => html`<meta name="hero-extension" content="enabled" />`,
+      }),
+    );
+    const notFoundBody = await ssrRender(
+      atlasNotFoundLayout(makeAtlasPageData(), {
+        ...makeAtlasSiteData(),
+        headContent: () => html`<meta name="not-found-extension" content="enabled" />`,
+      }),
+    );
+
+    assertHeadContentOrder(heroBody, 'atlasHero.css', 'name="hero-extension"');
+    assertHeadContentOrder(heroBody, 'name="hero-extension"', '</head>');
+    assertHeadContentOrder(notFoundBody, 'atlasNotFound.css', 'name="not-found-extension"');
+    assertHeadContentOrder(notFoundBody, 'name="not-found-extension"', '</head>');
+  });
+
+  it('18: preserves trusted specialized Atlas Layout Head Content', async () => {
+    const body = await ssrRender(
+      atlasDocLayout(makeAtlasPageData(), {
+        ...makeAtlasSiteData(),
+        headContent: () => html`
+          <meta name="project-metadata" content="specialized" />
+          <link rel="preconnect" href="https://assets.example.test" />
+          <style data-project-style>
+            :root {
+              --project-accent: tomato;
+            }
+          </style>
+          <script type="module" src="/project-browser.js"></script>
+          <script type="module">
+            window.projectInlineModule = true;
+          </script>
+        `,
+      }),
+    );
+
+    assert.match(body, /<meta name="project-metadata" content="specialized"/);
+    assert.match(body, /<link rel="preconnect" href="https:\/\/assets\.example\.test"/);
+    assert.match(body, /<style data-project-style>/);
+    assert.match(body, /<script type="module" src="\/project-browser\.js"><\/script>/);
+    assert.match(body, /<script type="module">\s*window\.projectInlineModule = true;\s*<\/script>/);
+    assertHeadContentOrder(body, 'atlasDoc.css', 'name="project-metadata"');
+  });
+
+  it('19: surfaces Atlas Layout Head Content callback failures', () => {
+    const renderError = new Error('Project head content failed');
+
+    assert.throws(
+      () =>
+        atlasDocLayout(makeAtlasPageData(), {
+          ...makeAtlasSiteData(),
+          headContent() {
+            throw renderError;
+          },
+        }),
+      error => error === renderError,
+    );
+  });
 });
 
 /**
@@ -373,6 +478,21 @@ describe('Test document helper', () => {
  */
 async function ssrRender(template) {
   return collectResult(render(template));
+}
+
+/**
+ * @param {string} body
+ * @param {string} earlier
+ * @param {string} later
+ */
+function assertHeadContentOrder(body, earlier, later) {
+  const headEnd = body.indexOf('</head>');
+  const earlierIndex = body.indexOf(earlier);
+  const laterIndex = body.indexOf(later);
+
+  assert.ok(earlierIndex >= 0 && earlierIndex < headEnd, `Expected ${earlier} inside <head>`);
+  assert.ok(laterIndex >= 0 && laterIndex <= headEnd, `Expected ${later} inside <head>`);
+  assert.ok(earlierIndex < laterIndex, `Expected ${earlier} before ${later}`);
 }
 
 /**

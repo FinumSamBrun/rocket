@@ -153,6 +153,7 @@ function atlasBlogDocument(pageData, data, mainContent) {
   addBootstrapIconLibrary(pageData);
   const cssPath = resolve('@rocket/js/docs/assets/prism-one-light.css', import.meta);
   const siteName = pageData.siteHeadMetadata?.siteName ?? pageData.title;
+  const headContent = data.headContent?.({ pageData });
 
   return document(
     pageData,
@@ -172,7 +173,7 @@ function atlasBlogDocument(pageData, data, mainContent) {
     `,
     {
       menu: false,
-      headerContent: html`
+      headContent: html`
         <link rel="stylesheet" href=${cssPath} />
         <link
           rel="stylesheet"
@@ -188,7 +189,7 @@ function atlasBlogDocument(pageData, data, mainContent) {
               title=${siteName}
             />`
           : ''}
-        ${renderStylesheets(data.stylesheets)}
+        ${renderStylesheets(data.stylesheets)} ${headContent}
       `,
     },
   );

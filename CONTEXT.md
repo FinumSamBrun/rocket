@@ -212,6 +212,10 @@ _Avoid_: SEO config, head tags, launch checklist
 The generic HTML document metadata Rocket includes for every document it creates.
 _Avoid_: SEO config, Site Head Metadata
 
+**Atlas Layout Head Content**:
+Site Author-provided trusted HTML content that extends an Atlas layout's document `<head>` without replacing the layout.
+_Avoid_: Header content, global header, Page header content
+
 **Favicon Asset**:
 A Site Author-provided icon asset referenced by Site Head Metadata.
 _Avoid_: Generated icon, app icon

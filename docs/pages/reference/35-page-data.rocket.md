@@ -151,7 +151,7 @@ export const layout = pageData => {
 
   return document(pageData, pageData.content, {
     title: `${title} | Acme Docs`,
-    headerContent: html`
+    headContent: html`
       <meta name="description" content=${description ?? ''} />
       <meta name="article:published_time" content=${date ?? ''} />
       <meta name="article:modified_time" content=${updated ?? ''} />
@@ -162,6 +162,36 @@ export const layout = pageData => {
   });
 };
 ```
+
+## PageData in Atlas Layout Head Content
+
+Atlas shared layout data can use the current `PageData` without replacing the Atlas layout. Its
+`headContent` callback receives an object containing the same `pageData` instance used for that Page
+render:
+
+```js label="siteData.js"
+import { html } from 'lit';
+
+export const siteData = {
+  headerData: {
+    logo: ['/assets/acme.svg'],
+    homeLink: '/',
+    navLinks: [],
+    socials: [],
+  },
+  footerData: [],
+  headContent: ({ pageData }) => html`
+    <meta name="acme-page-path" content=${pageData.url} />
+    <meta name="acme-page-title" content=${pageData.metadata.title} />
+  `,
+};
+```
+
+Atlas evaluates this synchronous callback once per Page render and appends the Lit result after its
+owned head resources. This differs from the `document` helper's `headContent` option, which accepts
+a direct Lit fragment composed by the custom layout. See
+[Atlas Layout Head Content](/advanced/atlas-layouts#atlas-layout-head-content) for supported layouts,
+ordering, and trusted-content responsibilities.
 
 ## Page registry
 

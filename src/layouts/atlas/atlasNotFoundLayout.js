@@ -18,6 +18,7 @@ export const atlasNotFoundLayout = (pageData, data) => {
   const homeLink = data.headerData.homeLink || '/';
   const rocketLogo = data.headerData.logo[0];
   const siteName = pageData.siteHeadMetadata?.siteName ?? pageData.title;
+  const headContent = data.headContent?.({ pageData });
 
   return document(
     pageData,
@@ -48,11 +49,11 @@ export const atlasNotFoundLayout = (pageData, data) => {
     `,
     {
       menu: false,
-      headerContent: html`<link
+      headContent: html`<link
           rel="stylesheet"
           href="${resolve('@rocket/js/layouts/atlasNotFound.css', import.meta)}"
         />
-        ${renderStylesheets(data.stylesheets)}`,
+        ${renderStylesheets(data.stylesheets)} ${headContent}`,
     },
   );
 };

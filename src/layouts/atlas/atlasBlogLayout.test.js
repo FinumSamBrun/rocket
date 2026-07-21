@@ -116,7 +116,49 @@ describe('Test Atlas blog layouts', () => {
     });
     assert.equal(atlasBlogComponents['rocket-menu'], undefined);
   });
+
+  it('07: appends Atlas Layout Head Content in blog post and index documents', async () => {
+    const postPageData = new PageData(new Map(), makePostMetadata(), '/posts/first-launch/');
+    postPageData.content = html`<h1>First Launch</h1>`;
+    const indexPageData = new PageData(new Map(), { title: 'Blog' }, '/blog/');
+    indexPageData.content = html`<h1>Blog</h1>`;
+    /** @type {PageData[]} */
+    const receivedPageData = [];
+    /** @type {import('@rocket/js/types.js').BlogData} */
+    const data = {
+      ...blogData,
+      stylesheets: ['/blog-theme.css'],
+      headContent: ({ pageData }) => {
+        receivedPageData.push(pageData);
+        return html`<meta name="blog-extension" content=${pageData.url} />`;
+      },
+    };
+
+    const postBody = await collectResult(render(atlasPostLayout(postPageData, data)));
+    const indexBody = await collectResult(render(atlasBlogIndexLayout(indexPageData, data)));
+
+    assert.deepEqual(receivedPageData, [postPageData, indexPageData]);
+    assertHeadContentOrder(postBody, '/blog-theme.css', 'name="blog-extension"');
+    assertHeadContentOrder(postBody, 'name="blog-extension"', '</head>');
+    assertHeadContentOrder(indexBody, '/blog-theme.css', 'name="blog-extension"');
+    assertHeadContentOrder(indexBody, 'name="blog-extension"', '</head>');
+  });
 });
+
+/**
+ * @param {string} body
+ * @param {string} earlier
+ * @param {string} later
+ */
+function assertHeadContentOrder(body, earlier, later) {
+  const headEnd = body.indexOf('</head>');
+  const earlierIndex = body.indexOf(earlier);
+  const laterIndex = body.indexOf(later);
+
+  assert.ok(earlierIndex >= 0 && earlierIndex < headEnd, `Expected ${earlier} inside <head>`);
+  assert.ok(laterIndex >= 0 && laterIndex <= headEnd, `Expected ${later} inside <head>`);
+  assert.ok(earlierIndex < laterIndex, `Expected ${earlier} before ${later}`);
+}
 
 /**
  * Strips Lit SSR comment markers and collapses whitespace so assertions can

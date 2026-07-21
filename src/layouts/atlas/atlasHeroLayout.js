@@ -263,6 +263,7 @@ export const atlasHeroLayout = (pageData, data) => {
   const heroTitle = hero.title ?? hero.sloganBottom ?? pageData.title;
   const siteName = pageData.siteHeadMetadata?.siteName ?? pageData.title;
   const navLinks = data.headerData.navLinks ?? [{ text: 'Docs', href: hero.documentationLink }];
+  const headContent = data.headContent?.({ pageData });
 
   return document(
     pageData,
@@ -326,14 +327,14 @@ export const atlasHeroLayout = (pageData, data) => {
     `,
     {
       menu: false,
-      headerContent: html`
+      headContent: html`
         <link rel="stylesheet" href=${cssPath} />
         <link
           rel="stylesheet"
           href="${resolve('@awesome.me/webawesome/dist/styles/webawesome.css', import.meta)}"
         />
         <link rel="stylesheet" href="${resolve('@rocket/js/layouts/atlasHero.css', import.meta)}" />
-        ${renderStylesheets(data.stylesheets)}
+        ${renderStylesheets(data.stylesheets)} ${headContent}
       `,
     },
   );

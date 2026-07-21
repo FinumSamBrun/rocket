@@ -210,6 +210,7 @@ export const atlasDocLayout = (pageData, data) => {
   const serializedToc = serializeToc(pageData.toc);
   const navigationIconServerBudget =
     data.navigationIconServerBudget ?? DEFAULT_ATLAS_DOC_NAVIGATION_ICON_SERVER_BUDGET;
+  const headContent = data.headContent?.({ pageData });
 
   return document(
     pageData,
@@ -269,14 +270,14 @@ export const atlasDocLayout = (pageData, data) => {
     `,
     {
       menu: false,
-      headerContent: html`
+      headContent: html`
         <link rel="stylesheet" href=${cssPath} />
         <link
           rel="stylesheet"
           href="${resolve('@awesome.me/webawesome/dist/styles/webawesome.css', import.meta)}"
         />
         <link rel="stylesheet" href="${resolve('@rocket/js/layouts/atlasDoc.css', import.meta)}" />
-        ${renderStylesheets(data.stylesheets)}
+        ${renderStylesheets(data.stylesheets)} ${headContent}
       `,
     },
   );

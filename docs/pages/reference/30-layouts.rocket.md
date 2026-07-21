@@ -50,7 +50,7 @@ export const layout = pageData =>
   document(pageData, pageData.content, {
     menu: false,
     title: `${pageData.metadata.title} | Acme Docs`,
-    headerContent: html`
+    headContent: html`
       <meta name="description" content=${pageData.metadata.description} />
       <link rel="stylesheet" href="/styles/site.css" />
     `,
@@ -101,7 +101,7 @@ export const layout = pageData =>
   document(pageData, pageData.content, {
     menu: 'html',
     title: `${pageData.metadata.title} | Acme Docs`,
-    headerContent: html`
+    headContent: html`
       <link rel="stylesheet" href="${resolve('./styles/docs.css', import.meta)}" />
     `,
   });
@@ -111,7 +111,7 @@ The options are:
 
 - `menu`: set to `'html'` for Rocket's default HTML menu or `false` for no default menu.
 - `title`: content for the document `<title>`.
-- `headerContent`: extra content inserted into `<head>`, such as CSS, metadata, or module scripts.
+- `headContent`: a direct Lit fragment inserted into `<head>` after generated client code.
 
 `document` emits Document Baseline Metadata for every document it creates: UTF-8 charset metadata
 and the standard responsive viewport metadata. This baseline is not Site Head Metadata and does not
@@ -119,6 +119,10 @@ depend on the `siteHeadMetadata` config option.
 
 `document` also inserts `pageData.clientCode`, so layouts using it automatically include code from
 `js client`, `js demo`, and Component Hydration.
+
+The document helper accepts an already-created Lit fragment because a custom layout owns its
+composition. Atlas shared layout data instead accepts a synchronous `headContent` callback so Atlas
+can provide the current `PageData` for each render. See [Atlas Layouts](/advanced/atlas-layouts).
 
 For the full `pageData` shape, see [PageData](/reference/page-data).
 

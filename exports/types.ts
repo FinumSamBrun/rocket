@@ -1,4 +1,6 @@
 export type {
+  AtlasLayoutHeadContent,
+  AtlasLayoutHeadContentContext,
   AtlasDocAsideTip,
   BlogData,
   Components,

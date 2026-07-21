@@ -11,7 +11,7 @@ import { defaultHtmlMenu } from '../menu.js';
  * @param {Object} [options]
  * @param {LitHTML} [options.title]
  * @param {'html' | false} [options.menu] render a default menu. set to false if you want your own
- * @param {LitHTML} [options.headerContent]
+ * @param {LitHTML} [options.headContent]
  */
 export function document(
   data,
@@ -19,7 +19,7 @@ export function document(
   {
     title = data.siteHeadMetadata?.title ?? data.title,
     menu = 'html',
-    headerContent = undefined,
+    headContent = undefined,
   } = {},
 ) {
   const siteHeadMetadata = data.siteHeadMetadata;
@@ -40,7 +40,7 @@ export function document(
               }
             </style>`
           : ''}
-        ${data.clientCode} ${headerContent}
+        ${data.clientCode} ${headContent}
       </head>
       <body>
         ${menu

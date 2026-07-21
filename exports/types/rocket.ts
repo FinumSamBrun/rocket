@@ -602,7 +602,24 @@ export type WorkflowData = {
   steps: WorkflowStep[];
 };
 
-export type HeroData = {
+export type AtlasLayoutHeadContentContext = {
+  /** The current PageData for this Page render. */
+  pageData: PageData;
+};
+
+/**
+ * Returns trusted Site Author markup appended after Atlas-owned document head content.
+ */
+export type AtlasLayoutHeadContent = (context: AtlasLayoutHeadContentContext) => TemplateResult;
+
+type AtlasLayoutHeadContentData = {
+  /**
+   * Trusted Site Author markup evaluated once and appended after Atlas-owned document head content.
+   */
+  headContent?: AtlasLayoutHeadContent;
+};
+
+export type HeroData = AtlasLayoutHeadContentData & {
   headerData: HeaderData;
   footerData: FooterSection[];
   /**
@@ -617,7 +634,7 @@ export type HeroData = {
   secondaryLinksData?: FooterLink[];
 };
 
-export type BlogData = {
+export type BlogData = AtlasLayoutHeadContentData & {
   headerData: HeaderData;
   /**
    * Project-owned stylesheet URLs loaded after the package Atlas layout stylesheets.
@@ -641,7 +658,7 @@ export type AtlasDocAsideTip = {
   iconName?: string;
 };
 
-export type DocData = {
+export type DocData = AtlasLayoutHeadContentData & {
   headerData: HeaderData;
   footerData: FooterSection[];
   /**

@@ -137,11 +137,64 @@ Atlas defaults this to `35`, which keeps likely above-the-fold navigation icons 
 response while avoiding work for deep navigation entries. Set it in your project-owned `siteData` to
 raise, lower, or zero the budget.
 
-The docs layout reads `headerData`, `stylesheets`, and `navigationIconServerBudget`; keep
-`footerData` as an empty array when the same data module is not used by another layout.
+The docs layout reads `headerData`, `stylesheets`, `headContent`, and
+`navigationIconServerBudget`; keep `footerData` as an empty array when the same data module is not
+used by another layout.
 
 Keep this data in your project. Do not import Rocket's docs-site `docs/pages/globalData.js` into a
 user site.
+
+## Atlas Layout Head Content
+
+Use Atlas Layout Head Content for a small trusted adjustment to the document `<head>` that does not
+fit the focused `stylesheets` option. Define `headContent` in shared layout data so the adjustment
+applies to every Page using that data:
+
+```js label="src/siteData.js"
+import { html } from 'lit';
+
+export const siteData = {
+  headerData: {
+    logo: ['/assets/acme.svg'],
+    homeLink: '/',
+    navLinks: [],
+    socials: [],
+  },
+  footerData: [],
+  stylesheets: ['/rocket-theme.css'],
+  headContent: ({ pageData }) => html`
+    <meta name="acme-page-path" content=${pageData.url} />
+    <link rel="preconnect" href="https://assets.acme.example" />
+    <script type="module" src="/assets/acme-setup.js"></script>
+  `,
+};
+```
+
+The callback runs once for each Page render. Its context object contains the current `pageData`, so
+head markup can use the Page URL, Page Metadata, or Site Head Metadata. A callback may omit the
+parameter when its output is site-wide:
+
+```js
+headContent: () => html`<meta name="acme-docs" content="enabled" />`,
+```
+
+`headContent` is synchronous and must return a Lit template result. Raw HTML strings, async
+callbacks, and implicit unsafe-HTML conversion are not supported. Module scripts use Rocket's
+normal generated-HTML and Vite build pipeline.
+
+Atlas appends the returned markup after its own metadata and resources, generated client code, and
+project `stylesheets`. This fixed final position lets custom CSS participate naturally in the
+cascade. Use browser APIs rather than template position when a script has a component timing
+dependency.
+
+Rocket treats the Lit result as trusted Site Author output. It does not sanitize, validate,
+deduplicate, classify, or reorder the elements. The Site Author remains responsible for duplicate
+metadata, conflicting styles, invalid head elements, script behavior, and any Content Security
+Policy requirements.
+
+Documentation, hero, blog post, blog index, and not-found Atlas layouts all support the same
+callback contract. Continue to use `stylesheets` for normal project theming; use `headContent` for
+specialized scripts, styles, links, metadata, or resource hints.
 
 ## Docs aside tips
 

@@ -2810,6 +2810,70 @@ export default function postPage() {
       /cannot combine static params with pagination/,
     );
   });
+
+  it('46: processes Atlas Layout Head Content module scripts in static builds', async () => {
+    const projectRoot = mkdtempSync(path.join(tmpdir(), 'rocket-atlas-head-content-build-'));
+    const originalCwd = process.cwd();
+    const atlasDocModule = new URL('../../exports/layouts/atlasDoc.js', import.meta.url).href;
+    const litModule = import.meta.resolve('lit');
+    const litSsrModule = import.meta.resolve('@lit-labs/ssr');
+    const collectResultModule = import.meta.resolve('@lit-labs/ssr/lib/render-result.js');
+    mkdirSync(path.join(projectRoot, 'docs'), { recursive: true });
+    writeFileSync(
+      path.join(projectRoot, 'docs/index.rocket.js'),
+      `
+import { atlasDocLayout } from '${atlasDocModule}';
+import { html } from '${litModule}';
+import { render } from '${litSsrModule}';
+import { collectResult } from '${collectResultModule}';
+
+export const config = { path: '/', metadata: { title: 'Home' }, menu: false };
+
+const data = {
+  headerData: { logo: ['/logo.svg'], homeLink: '/', socials: [], navLinks: [] },
+  footerData: [],
+  headContent: ({ pageData }) => html\`
+    <meta name="atlas-build-extension" content=\${pageData.url} />
+    <script type="module">window.atlasHeadBuild = 'processed-by-vite';</script>
+  \`,
+};
+
+export default async function homePage(_request, { pageData }) {
+  pageData.content = html\`<h1>Home</h1>\`;
+  return collectResult(render(atlasDocLayout(pageData, data)));
+}
+      `,
+    );
+    /** @type {any} */
+    const build = new RocketBuild();
+    build.cli = {
+      config: {
+        includeGlobs: ['docs/**/*.rocket.js'],
+        excludeRegex: [],
+        /** @param {any} config */
+        adjustDevServerConfig(config) {
+          return config;
+        },
+      },
+    };
+
+    process.chdir(projectRoot);
+    try {
+      await build.build();
+
+      const builtHtml = readFileSync('dist/index.html', 'utf8');
+      assert.match(builtHtml, /<meta name="atlas-build-extension" content="\/"/);
+      assert.doesNotMatch(builtHtml, /window\.atlasHeadBuild/);
+      const builtJavaScript = globSync('assets/*.js', { cwd: 'dist' })
+        .map(file => readFileSync(path.join('dist', file), 'utf8'))
+        .join('\n');
+      assert.match(builtJavaScript, /atlasHeadBuild/);
+      assert.match(builtJavaScript, /processed-by-vite/);
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 /**

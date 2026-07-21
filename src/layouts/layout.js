@@ -9,7 +9,7 @@ export const layout = data => {
   addBootstrapIconLibrary(data);
   return document(data, data.content, {
     menu: 'html',
-    headerContent: html`
+    headContent: html`
       <link
         rel="stylesheet"
         href="${resolve('@rocket/js/docs/assets/prism-one-light.css', import.meta)}"
@@ -27,7 +27,7 @@ export const singleDemoLayout = data => {
   addBootstrapIconLibrary(data);
   return document(data, data.content, {
     menu: false,
-    headerContent: html`
+    headContent: html`
       <link
         rel="stylesheet"
         href="${resolve('@awesome.me/webawesome/dist/styles/webawesome.css', import.meta)}"
