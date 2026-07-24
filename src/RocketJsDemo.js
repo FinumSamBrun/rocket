@@ -250,7 +250,6 @@ export class RocketJsDemo extends LitElement {
         background-color: #eee;
         width: 100%;
         overflow: hidden;
-        z-index: 0;
       }
 
       #resize {
@@ -280,6 +279,7 @@ export class RocketJsDemo extends LitElement {
         max-width: 100%;
         min-width: min-content;
         background: white;
+        z-index: 0;
       }
 
       #bottom {
